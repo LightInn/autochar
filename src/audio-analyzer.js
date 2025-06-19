@@ -20,6 +20,12 @@ class AudioAnalyzer {
 
     async initialize(audioElement) {
         try {
+            // Wait for Meyda to be loaded
+            if (typeof Meyda === 'undefined') {
+                console.log('Waiting for Meyda to load...');
+                await this.waitForMeyda();
+            }
+            
             this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
             this.source = this.audioContext.createMediaElementSource(audioElement);
             this.analyser = this.audioContext.createAnalyser();
@@ -200,6 +206,23 @@ class AudioAnalyzer {
     // Get overall volume level
     getVolumeLevel() {
         return this.features.rms * 100;
+    }
+
+    // Wait for Meyda library to load
+    waitForMeyda(maxWait = 5000) {
+        return new Promise((resolve, reject) => {
+            const startTime = Date.now();
+            const checkMeyda = () => {
+                if (typeof Meyda !== 'undefined') {
+                    resolve();
+                } else if (Date.now() - startTime > maxWait) {
+                    reject(new Error('Meyda library failed to load within timeout'));
+                } else {
+                    setTimeout(checkMeyda, 100);
+                }
+            };
+            checkMeyda();
+        });
     }
 }
 

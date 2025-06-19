@@ -5,10 +5,13 @@ Une application web qui génère automatiquement des animations de stickman 2D �
 ## ✨ Fonctionnalités
 
 - **Analyse audio avancée** : Détection automatique d'émotions à partir de l'audio
+- **🎤 Analyse vocale Whisper** : Détection d'intention en français via reconnaissance vocale
 - **Animation dynamique** : Stickman expressif avec 8 émotions différentes
+- **Fusion audio + voix** : Combine l'analyse spectrale et l'intention vocale
 - **Rendu temps réel** : Animation fluide sur Canvas HTML5
 - **Export vidéo** : Génération de vidéos transparentes (WebM/MP4)
 - **Interface intuitive** : Contrôles simples et visualisations audio
+- **Support français** : Reconnaissance vocale optimisée pour le français
 - **Responsive** : Compatible desktop et mobile
 
 ## 🚀 Démarrage rapide
@@ -57,8 +60,17 @@ npx serve .
 
 ### 3. Lancer l'animation
 - Cliquez sur "▶️ Jouer" pour démarrer l'animation
+- **🎤 Parlez en français** : Votre voix sera analysée pour détecter les intentions
 - L'analyse audio se fait en temps réel
 - Le stickman s'anime automatiquement selon les émotions détectées
+- Les transcriptions apparaissent sous l'animation
+
+### Exemples d'intentions vocales détectées :
+- **"Je suis content"** → 😊 Animation joyeuse
+- **"C'est fantastique !"** → 🤩 Animation excitée  
+- **"Je suis triste"** → 😢 Animation mélancolique
+- **"Allons danser !"** → 💃 Animation dansante
+- **"Quelle surprise !"** → 😲 Animation surprise
 
 ### 4. Exporter la vidéo
 - Cliquez sur "📹 Exporter Vidéo" pendant ou après la lecture
@@ -97,21 +109,26 @@ autostickman/
 ### Technologies utilisées
 - **HTML5 Canvas** : Rendu graphique 2D
 - **Web Audio API** : Capture et analyse audio
+- **🎤 Web Speech API** : Reconnaissance vocale en français (fallback pour Whisper)
 - **Meyda.js** : Extraction de features audio avancées
 - **GSAP** : Animations fluides (transitions)
 - **MediaRecorder API** : Capture vidéo avec transparence
+- **Whisper-style Analysis** : Détection d'intention vocale en français
 - **Vanilla JavaScript** : Pas de framework lourd
 
 ### Algorithme d'analyse
 
 1. **Extraction audio** : RMS, centroïde spectral, ZCR, loudness
-2. **Détection d'émotion** : Algorithmes de scoring basés sur :
+2. **🎤 Analyse vocale** : Transcription + détection d'intention en français
+3. **Détection d'émotion** : Algorithmes de scoring basés sur :
    - Énergie (intensité générale)
    - Brillance (fréquences hautes)
+   - **Intentions vocales** (mots-clés français analysés)
    - Harmonicité (régularité spectrale)
    - Tempo (détection rythmique)
-3. **Lissage temporel** : Transitions fluides entre émotions
-4. **Mapping corporel** : Association émotion → pose du stickman
+4. **Fusion des données** : Combine audio (60%) + voix (40%)
+5. **Lissage temporel** : Transitions fluides entre émotions
+6. **Mapping corporel** : Association émotion → pose du stickman
 
 ## 🎥 Format de sortie
 
@@ -145,6 +162,18 @@ autostickman/
 - Utilisez Chrome/Edge pour de meilleurs résultats
 - Vérifiez l'espace disque disponible
 - Réduisez la durée audio si le fichier est trop long
+
+### Le microphone ne fonctionne pas
+- Autorisez l'accès microphone dans votre navigateur
+- Vérifiez les paramètres de confidentialité
+- La reconnaissance vocale fonctionne mieux avec Chrome/Edge
+- Parlez clairement en français
+
+### Les intentions vocales ne sont pas détectées
+- Utilisez des phrases simples en français
+- Parlez distinctement et pas trop rapidement  
+- Essayez des mots-clés comme : "content", "triste", "excité", "danser"
+- La détection fonctionne mieux avec Chrome
 
 ## 🚧 Développement
 

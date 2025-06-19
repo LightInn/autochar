@@ -238,6 +238,28 @@ header p {
     border-radius: 50%;
 }
 
+.transcription-display {
+    margin-top: 10px;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 8px;
+    border-left: 4px solid #667eea;
+    font-size: 0.9em;
+    transition: opacity 0.3s ease;
+}
+
+.transcription-text {
+    font-style: italic;
+    color: #333;
+    margin-bottom: 5px;
+}
+
+.intention-result {
+    font-weight: bold;
+    color: #667eea;
+    font-size: 0.8em;
+}
+
 @media (max-width: 1200px) {
     .container {
         grid-template-columns: 1fr;

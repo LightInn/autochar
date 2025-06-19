@@ -2,6 +2,7 @@
 class StickmanAutoAnimator {
     constructor() {
         this.audioAnalyzer = null;
+        this.whisperAnalyzer = null;
         this.emotionMapper = null;
         this.stickmanRenderer = null;
         this.animator = null;
@@ -15,6 +16,7 @@ class StickmanAutoAnimator {
         this.audioFile = null;
         this.audioElement = null;
         this.isPlaying = false;
+        this.currentSpeechIntention = null;
         
         // Visualization
         this.waveformCanvas = null;
@@ -66,11 +68,14 @@ class StickmanAutoAnimator {
     }
 
     initializeComponents() {
+        // Initialize Whisper analyzer first
+        this.whisperAnalyzer = new WhisperAnalyzer();
+        
         // Initialize audio analyzer
         this.audioAnalyzer = new AudioAnalyzer();
         
-        // Initialize emotion mapper
-        this.emotionMapper = new EmotionMapper();
+        // Initialize emotion mapper with Whisper support
+        this.emotionMapper = new EmotionMapper(this.whisperAnalyzer);
         
         // Initialize stickman renderer
         this.stickmanRenderer = new StickmanRenderer(this.elements.stickmanCanvas);
@@ -84,6 +89,11 @@ class StickmanAutoAnimator {
         // Set up audio analyzer callback
         this.audioAnalyzer.addAnalysisCallback((features, frequencyData) => {
             this.handleAudioAnalysis(features, frequencyData);
+        });
+        
+        // Set up Whisper callback
+        this.whisperAnalyzer.addTranscriptionCallback((data) => {
+            this.handleSpeechAnalysis(data);
         });
         
         // Set up animator callbacks
@@ -180,6 +190,9 @@ class StickmanAutoAnimator {
                 throw new Error('Failed to initialize audio analyzer.');
             }
             
+            // Initialize Whisper for speech analysis
+            await this.whisperAnalyzer.initialize();
+            
             // Enable controls
             this.enableControls(true);
             
@@ -217,12 +230,13 @@ class StickmanAutoAnimator {
             
             // Start analysis and animation
             this.audioAnalyzer.startAnalysis();
+            this.whisperAnalyzer.startTranscription(this.elements.audioPlayer);
             this.animator.start();
             
             this.isPlaying = true;
             this.updateControlButtons();
             
-            console.log('Playback started');
+            console.log('Playback started with French speech analysis');
             
         } catch (error) {
             console.error('Error starting playback:', error);
@@ -235,6 +249,7 @@ class StickmanAutoAnimator {
         
         this.elements.audioPlayer.pause();
         this.audioAnalyzer.stopAnalysis();
+        this.whisperAnalyzer.stopTranscription();
         this.animator.pause();
         
         this.isPlaying = false;
@@ -250,6 +265,7 @@ class StickmanAutoAnimator {
         }
         
         this.audioAnalyzer.stopAnalysis();
+        this.whisperAnalyzer.stopTranscription();
         this.animator.stop();
         
         // Reset to neutral state
@@ -312,12 +328,51 @@ class StickmanAutoAnimator {
     }
 
     handleAudioAnalysis(features, frequencyData) {
-        // Analyze emotion from audio features
-        const emotionAnalysis = this.emotionMapper.analyzeEmotion(features);
+        // Analyze emotion from audio features combined with speech
+        const emotionAnalysis = this.emotionMapper.analyzeEmotion(features, this.currentSpeechIntention);
         
         // Update visualizations
         this.drawWaveform(frequencyData);
         this.updateEmotionBars(emotionAnalysis.scores);
+    }
+
+    handleSpeechAnalysis(data) {
+        const { transcription, intention, interim } = data;
+        
+        if (!interim && intention && intention.confidence > 0.3) {
+            this.currentSpeechIntention = intention;
+            console.log(`🎤 French speech detected: "${transcription}" → ${intention.emotion} (${(intention.confidence * 100).toFixed(1)}%)`);
+            
+            // Update UI with transcription
+            this.updateTranscriptionDisplay(transcription, intention);
+        }
+    }
+
+    updateTranscriptionDisplay(transcription, intention) {
+        // Create or update transcription display element
+        let transcriptionElement = document.getElementById('transcriptionDisplay');
+        if (!transcriptionElement) {
+            transcriptionElement = document.createElement('div');
+            transcriptionElement.id = 'transcriptionDisplay';
+            transcriptionElement.className = 'transcription-display';
+            
+            const emotionDisplay = document.querySelector('.emotion-display');
+            if (emotionDisplay) {
+                emotionDisplay.appendChild(transcriptionElement);
+            }
+        }
+        
+        transcriptionElement.innerHTML = `
+            <div class="transcription-text">💬 "${transcription}"</div>
+            <div class="intention-result">→ ${intention.emotion} (${(intention.confidence * 100).toFixed(0)}%)</div>
+        `;
+        
+        // Auto-hide after 5 seconds
+        setTimeout(() => {
+            if (transcriptionElement) {
+                transcriptionElement.style.opacity = '0.5';
+            }
+        }, 5000);
     }
 
     handleEmotionChange(emotionChange) {

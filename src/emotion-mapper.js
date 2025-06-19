@@ -1,5 +1,9 @@
 class EmotionMapper {
-    constructor() {
+    constructor(whisperAnalyzer = null) {
+        this.whisperAnalyzer = whisperAnalyzer;
+        this.audioWeight = 0.6; // Poids pour l'analyse audio
+        this.speechWeight = 0.4; // Poids pour l'analyse vocale/Whisper
+
         this.emotionThresholds = {
             energy: { low: 0.3, medium: 0.6, high: 0.8 },
             brightness: { low: 0.3, medium: 0.6, high: 0.8 },
@@ -144,7 +148,7 @@ class EmotionMapper {
         this.smoothingFactor = 0.3; // For emotion transitions
     }
 
-    analyzeEmotion(audioFeatures) {
+    analyzeEmotion(audioFeatures, speechIntention = null) {
         const {
             rms,
             spectralCentroid,
@@ -162,8 +166,8 @@ class EmotionMapper {
         const normalizedLoudness = Math.min(1, Math.abs(loudness) / 60);
         const normalizedPitch = Math.min(1, pitch / 1000);
 
-        // Emotion scoring
-        const emotionScores = {
+        // Emotion scoring from audio
+        const audioEmotionScores = {
             neutral: this.calculateNeutralScore(normalizedEnergy, normalizedBrightness, normalizedLoudness),
             happy: this.calculateHappyScore(normalizedEnergy, normalizedBrightness, normalizedLoudness, tempo),
             excited: this.calculateExcitedScore(normalizedEnergy, normalizedBrightness, normalizedLoudness, tempo),
@@ -174,20 +178,51 @@ class EmotionMapper {
             dancing: this.calculateDancingScore(normalizedEnergy, tempo, normalizedLoudness)
         };
 
+        // Combine with speech intention if available
+        let finalScores = { ...audioEmotionScores };
+        
+        if (speechIntention && speechIntention.confidence > 0.3) {
+            finalScores = this.combineAudioAndSpeech(audioEmotionScores, speechIntention);
+        }
+
         // Find the dominant emotion
-        const dominantEmotion = Object.keys(emotionScores).reduce((a, b) => 
-            emotionScores[a] > emotionScores[b] ? a : b
+        const dominantEmotion = Object.keys(finalScores).reduce((a, b) => 
+            finalScores[a] > finalScores[b] ? a : b
         );
 
         // Smooth emotion transitions
-        this.updateEmotionHistory(dominantEmotion, emotionScores[dominantEmotion]);
+        this.updateEmotionHistory(dominantEmotion, finalScores[dominantEmotion]);
         
         return {
             emotion: dominantEmotion,
-            confidence: emotionScores[dominantEmotion],
-            scores: emotionScores,
-            emotionData: this.emotions[dominantEmotion]
+            confidence: finalScores[dominantEmotion],
+            scores: finalScores,
+            emotionData: this.emotions[dominantEmotion],
+            speechIntention: speechIntention
         };
+    }
+
+    combineAudioAndSpeech(audioScores, speechIntention) {
+        const combined = { ...audioScores };
+        
+        // Boost the emotion detected from speech
+        if (speechIntention.emotion && combined[speechIntention.emotion] !== undefined) {
+            const speechBoost = speechIntention.confidence * this.speechWeight;
+            combined[speechIntention.emotion] = Math.min(1.0, 
+                combined[speechIntention.emotion] * this.audioWeight + speechBoost
+            );
+            
+            console.log(`🎤 Boosting ${speechIntention.emotion} from speech analysis (+${(speechBoost * 100).toFixed(1)}%)`);
+        }
+        
+        return combined;
+    }
+
+    // Set the balance between audio and speech analysis
+    setAnalysisWeights(audioWeight = 0.6, speechWeight = 0.4) {
+        this.audioWeight = audioWeight;
+        this.speechWeight = speechWeight;
+        console.log(`Analysis weights updated: Audio ${audioWeight}, Speech ${speechWeight}`);
     }
 
     calculateNeutralScore(energy, brightness, loudness) {
