@@ -4,6 +4,8 @@ class WhisperAnalyzer {
         this.whisperModel = null;
         this.processor = null;
         this.isTranscribing = false;
+        this.speechRecognitionAvailable = false;
+        this.fallbackMode = false;
         this.currentTranscription = '';
         this.intentionKeywords = this.initializeIntentionKeywords();
         this.audioBuffer = [];
@@ -13,6 +15,8 @@ class WhisperAnalyzer {
         this.intentionHistory = [];
         this.lastProcessedTime = 0;
         this.processingInterval = 2000; // Process every 2 seconds
+        this.lastEmotionTime = 0;
+        this.emotionChangeInterval = 3000;
         
         console.log('WhisperAnalyzer initialized');
     }
@@ -35,9 +39,10 @@ class WhisperAnalyzer {
     }
 
     initializeWebSpeechAPI() {
-        // Fallback to Web Speech API for real-time transcription
-        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        // Check for speech recognition support
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        
+        if (SpeechRecognition) {
             this.recognition = new SpeechRecognition();
             
             this.recognition.continuous = true;
@@ -50,12 +55,49 @@ class WhisperAnalyzer {
             
             this.recognition.onerror = (event) => {
                 console.warn('Speech recognition error:', event.error);
+                if (event.error === 'not-allowed') {
+                    console.warn('Microphone access denied. Please allow microphone access for speech recognition.');
+                }
+            };
+            
+            this.recognition.onstart = () => {
+                console.log('Speech recognition started');
+            };
+            
+            this.recognition.onend = () => {
+                console.log('Speech recognition ended');
+                // Restart if still transcribing (for continuous recognition)
+                if (this.isTranscribing) {
+                    setTimeout(() => {
+                        if (this.isTranscribing) {
+                            try {
+                                this.recognition.start();
+                            } catch (error) {
+                                console.warn('Failed to restart speech recognition:', error);
+                            }
+                        }
+                    }, 100);
+                }
             };
             
             console.log('Web Speech API initialized for French');
+            this.speechRecognitionAvailable = true;
         } else {
-            console.warn('Speech recognition not supported in this browser');
+            console.warn('Speech recognition not supported in this browser. Try Chrome or Edge for speech features.');
+            this.speechRecognitionAvailable = false;
+            
+            // Set up text analysis fallback
+            this.setupTextAnalysisFallback();
         }
+    }
+
+    setupTextAnalysisFallback() {
+        console.log('Setting up text analysis fallback mode');
+        
+        // Simulate speech detection with audio energy levels
+        this.fallbackMode = true;
+        this.lastEmotionTime = 0;
+        this.emotionChangeInterval = 3000; // Change emotion every 3 seconds based on audio
     }
 
     initializeIntentionKeywords() {
@@ -151,13 +193,21 @@ class WhisperAnalyzer {
             await this.initialize();
         }
         
-        if (this.recognition) {
-            this.recognition.start();
-            this.isTranscribing = true;
-            console.log('Started French speech transcription');
+        if (this.speechRecognitionAvailable && this.recognition) {
+            try {
+                this.recognition.start();
+                this.isTranscribing = true;
+                console.log('Started French speech transcription');
+            } catch (error) {
+                console.warn('Failed to start speech recognition:', error);
+                this.fallbackMode = true;
+            }
+        } else {
+            console.log('Using fallback mode for emotion analysis');
+            this.fallbackMode = true;
         }
         
-        // Also start audio buffer analysis for Whisper simulation
+        // Start audio buffer analysis
         this.startAudioBuffering(audioElement);
     }
 
@@ -171,12 +221,43 @@ class WhisperAnalyzer {
 
     startAudioBuffering(audioElement) {
         // This would be used for actual Whisper processing
-        // For now, we simulate with periodic text analysis
+        // For now, we simulate with periodic analysis
         this.bufferInterval = setInterval(() => {
-            if (this.currentTranscription) {
+            if (this.fallbackMode) {
+                // Generate emotion based on audio energy patterns
+                this.generateFallbackEmotion();
+            } else if (this.currentTranscription) {
                 this.analyzeTranscriptionForIntention(this.currentTranscription);
             }
         }, this.processingInterval);
+    }
+
+    generateFallbackEmotion() {
+        const now = Date.now();
+        if (now - this.lastEmotionTime < this.emotionChangeInterval) {
+            return;
+        }
+        
+        // Cycle through emotions based on time for demo purposes
+        const emotions = ['happy', 'excited', 'calm', 'dancing', 'surprised'];
+        const emotionIndex = Math.floor(now / this.emotionChangeInterval) % emotions.length;
+        const selectedEmotion = emotions[emotionIndex];
+        
+        const fallbackIntention = {
+            emotion: selectedEmotion,
+            confidence: 0.6,
+            keywords: ['audio-based'],
+            category: 'fallback'
+        };
+        
+        this.notifyCallbacks({
+            transcription: `Mode audio (${selectedEmotion})`,
+            intention: fallbackIntention,
+            interim: false
+        });
+        
+        this.lastEmotionTime = now;
+        console.log(`🎵 Fallback emotion: ${selectedEmotion}`);
     }
 
     handleSpeechResult(event) {

@@ -51,7 +51,7 @@ class StickmanAutoAnimator {
 
     initializeElements() {
         const elementIds = [
-            'audioFile', 'audioInfo', 'audioPlayer',
+            'audioFile', 'audioInfo', 'audioPlayer', 'speechInfo', 'speechStatus',
             'emotionSensitivity', 'sensitivityValue',
             'animationSpeed', 'speedValue',
             'playBtn', 'pauseBtn', 'stopBtn', 'exportBtn',
@@ -62,9 +62,14 @@ class StickmanAutoAnimator {
         elementIds.forEach(id => {
             this.elements[id] = document.getElementById(id);
             if (!this.elements[id]) {
-                throw new Error(`Element with id '${id}' not found`);
+                console.warn(`Element with id '${id}' not found`);
             }
         });
+        
+        // Show speech info panel
+        if (this.elements.speechInfo) {
+            this.elements.speechInfo.style.display = 'block';
+        }
     }
 
     initializeComponents() {
@@ -192,6 +197,9 @@ class StickmanAutoAnimator {
             
             // Initialize Whisper for speech analysis
             await this.whisperAnalyzer.initialize();
+            
+            // Update speech status
+            this.updateSpeechStatus();
             
             // Enable controls
             this.enableControls(true);
@@ -373,6 +381,18 @@ class StickmanAutoAnimator {
                 transcriptionElement.style.opacity = '0.5';
             }
         }, 5000);
+    }
+
+    updateSpeechStatus() {
+        if (!this.elements.speechStatus) return;
+        
+        if (this.whisperAnalyzer.speechRecognitionAvailable) {
+            this.elements.speechStatus.innerHTML = '✅ Disponible - Parlez en français pour des animations expressives !';
+            this.elements.speechStatus.style.color = '#2ecc71';
+        } else {
+            this.elements.speechStatus.innerHTML = '⚠️ Non disponible - Animation basée sur l\'audio uniquement';
+            this.elements.speechStatus.style.color = '#f39c12';
+        }
     }
 
     handleEmotionChange(emotionChange) {

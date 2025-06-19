@@ -6,10 +6,8 @@
     <title>Stickman Auto-Animator</title>
     <link rel="stylesheet" href="src/styles.css">
     <!-- Audio Analysis Libraries -->
-    <script src="https://unpkg.com/meyda@5.2.1/dist/web/meyda.min.js"></script>
+    <script src="https://unpkg.com/meyda@5.4.1/dist/web/meyda.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
-    <!-- Whisper Web (transformers.js) for speech analysis -->
-    <script type="module" src="https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2/dist/transformers.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -25,6 +23,13 @@
                     <input type="file" id="audioFile" accept="audio/*" style="display: none;">
                 </label>
                 <div id="audioInfo" class="audio-info"></div>
+                <div id="speechInfo" class="speech-info" style="display: none;">
+                    <div class="info-box">
+                        <p><strong>🎤 Reconnaissance vocale :</strong></p>
+                        <p id="speechStatus">Vérification...</p>
+                        <small>Pour une meilleure expérience, utilisez Chrome ou Edge et autorisez l'accès au microphone.</small>
+                    </div>
+                </div>
             </div>
 
             <div class="settings-section">

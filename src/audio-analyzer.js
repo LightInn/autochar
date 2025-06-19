@@ -6,6 +6,8 @@ class AudioAnalyzer {
         this.dataArray = null;
         this.bufferLength = null;
         this.isAnalyzing = false;
+        this.meydaAnalyzer = null;
+        this.useFallbackAnalysis = false;
         this.features = {
             rms: 0,
             spectralCentroid: 0,
@@ -57,16 +59,38 @@ class AudioAnalyzer {
         
         this.isAnalyzing = true;
         
-        // Start Meyda analysis
-        Meyda.start(['rms', 'spectralCentroid', 'zcr', 'loudness', 'chroma', 'mfcc']);
+        // Initialize Meyda with current setup
+        if (typeof Meyda !== 'undefined' && Meyda.audioContext) {
+            try {
+                // Meyda v5+ uses different API
+                this.meydaAnalyzer = Meyda.createMeydaAnalyzer({
+                    audioContext: this.audioContext,
+                    source: this.source,
+                    bufferSize: 512,
+                    featureExtractors: ['rms', 'spectralCentroid', 'zcr', 'loudness', 'chroma', 'mfcc'],
+                    callback: (features) => {
+                        this.handleMeydaFeatures(features);
+                    }
+                });
+                this.meydaAnalyzer.start();
+                console.log('Meyda analyzer started');
+            } catch (error) {
+                console.warn('Meyda failed to start, using fallback analysis:', error);
+                this.useFallbackAnalysis = true;
+            }
+        } else {
+            console.warn('Meyda not available, using fallback analysis');
+            this.useFallbackAnalysis = true;
+        }
         
         this.analyzeLoop();
     }
 
     stopAnalysis() {
         this.isAnalyzing = false;
-        if (Meyda) {
-            Meyda.stop();
+        if (this.meydaAnalyzer) {
+            this.meydaAnalyzer.stop();
+            this.meydaAnalyzer = null;
         }
     }
 
@@ -76,9 +100,54 @@ class AudioAnalyzer {
         // Get frequency data
         this.analyser.getByteFrequencyData(this.dataArray);
         
-        // Get Meyda features
-        const meydaFeatures = Meyda.get(['rms', 'spectralCentroid', 'zcr', 'loudness', 'chroma', 'mfcc']);
+        // If using fallback analysis, calculate features manually
+        if (this.useFallbackAnalysis) {
+            this.calculateFallbackFeatures();
+        }
+        // Meyda features are handled in handleMeydaFeatures callback
         
+        // Notify callbacks
+        this.analysisCallbacks.forEach(callback => {
+            callback(this.features, this.dataArray);
+        });
+        
+        requestAnimationFrame(() => this.analyzeLoop());
+    }
+
+    calculateFallbackFeatures() {
+        // Calculate basic features without Meyda
+        const energy = this.calculateEnergy();
+        const brightness = this.calculateBrightness();
+        
+        this.features = {
+            rms: energy / 100,
+            spectralCentroid: brightness * 4000,
+            zcr: this.calculateZCR(),
+            loudness: -60 + (energy / 100) * 60,
+            pitch: this.estimatePitch(),
+            tempo: this.estimateTempo(),
+            energy: energy,
+            brightness: brightness,
+            harmonicity: this.calculateHarmonicity()
+        };
+    }
+
+    calculateZCR() {
+        // Simple zero-crossing rate calculation
+        const timeData = new Float32Array(this.analyser.fftSize);
+        this.analyser.getFloatTimeDomainData(timeData);
+        
+        let crossings = 0;
+        for (let i = 1; i < timeData.length; i++) {
+            if ((timeData[i-1] >= 0) !== (timeData[i] >= 0)) {
+                crossings++;
+            }
+        }
+        
+        return crossings / timeData.length;
+    }
+
+    handleMeydaFeatures(meydaFeatures) {
         if (meydaFeatures) {
             this.features = {
                 rms: meydaFeatures.rms || 0,
@@ -91,14 +160,7 @@ class AudioAnalyzer {
                 brightness: this.calculateBrightness(),
                 harmonicity: this.calculateHarmonicity()
             };
-            
-            // Notify callbacks
-            this.analysisCallbacks.forEach(callback => {
-                callback(this.features, this.dataArray);
-            });
         }
-        
-        requestAnimationFrame(() => this.analyzeLoop());
     }
 
     estimatePitch() {
