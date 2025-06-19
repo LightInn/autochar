@@ -1,0 +1,18 @@
+{
+  "name": "stickman-auto-animator",
+  "version": "1.0.0",
+  "description": "Automatic 2D stickman animation from audio input",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx serve .",
+    "dev": "npx live-server --port=3000",
+    "build": "echo 'No build process needed for vanilla JS'"
+  },
+  "keywords": ["animation", "stickman", "audio", "2d", "javascript"],
+  "author": "Your Name",
+  "license": "MIT",
+  "devDependencies": {
+    "live-server": "^1.2.2",
+    "serve": "^14.2.1"
+  }
+}

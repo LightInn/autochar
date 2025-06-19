@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stickman Auto-Animator</title>
+    <link rel="stylesheet" href="src/styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/meyda/5.2.1/meyda.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎭 Stickman Auto-Animator</h1>
+            <p>Génère automatiquement une animation de stickman à partir de ton audio</p>
+        </header>
+
+        <div class="controls-panel">
+            <div class="upload-section">
+                <label for="audioFile" class="upload-btn">
+                    🎵 Charger un fichier audio
+                    <input type="file" id="audioFile" accept="audio/*" style="display: none;">
+                </label>
+                <div id="audioInfo" class="audio-info"></div>
+            </div>
+
+            <div class="settings-section">
+                <h3>⚙️ Paramètres</h3>
+                <div class="setting-item">
+                    <label for="emotionSensitivity">Sensibilité émotionnelle:</label>
+                    <input type="range" id="emotionSensitivity" min="0.1" max="2" step="0.1" value="1">
+                    <span id="sensitivityValue">1.0</span>
+                </div>
+                <div class="setting-item">
+                    <label for="animationSpeed">Vitesse d'animation:</label>
+                    <input type="range" id="animationSpeed" min="0.5" max="3" step="0.1" value="1">
+                    <span id="speedValue">1.0</span>
+                </div>
+            </div>
+
+            <div class="control-buttons">
+                <button id="playBtn" disabled>▶️ Jouer</button>
+                <button id="pauseBtn" disabled>⏸️ Pause</button>
+                <button id="stopBtn" disabled>⏹️ Stop</button>
+                <button id="exportBtn" disabled>📹 Exporter Vidéo</button>
+            </div>
+        </div>
+
+        <div class="animation-area">
+            <canvas id="stickmanCanvas" width="800" height="600"></canvas>
+            <div class="emotion-display">
+                <span id="currentEmotion">😐 Neutre</span>
+            </div>
+        </div>
+
+        <div class="analysis-panel">
+            <h3>📊 Analyse Audio</h3>
+            <div class="audio-visualizer">
+                <canvas id="waveformCanvas" width="400" height="100"></canvas>
+            </div>
+            <div class="emotion-timeline">
+                <div id="emotionBars"></div>
+            </div>
+        </div>
+    </div>
+
+    <audio id="audioPlayer" style="display: none;"></audio>
+
+    <script src="src/audio-analyzer.js"></script>
+    <script src="src/emotion-mapper.js"></script>
+    <script src="src/stickman-renderer.js"></script>
+    <script src="src/animator.js"></script>
+    <script src="src/video-exporter.js"></script>
+    <script src="src/main.js"></script>
+</body>
+</html>
