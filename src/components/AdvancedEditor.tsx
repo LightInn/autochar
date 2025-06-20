@@ -2,7 +2,6 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { EmotionManager } from '../utils/emotionManager';
 import { AssetManager, type AssetFile } from '../utils/assetManager';
 import StickmanViewer from './StickmanViewer';
-import VideoExporter from './VideoExporter';
 
 type TabType = 'emotions' | 'sets' | 'assets';
 
@@ -395,8 +394,95 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
 
       {selectedSet && (
         <div className="border-t border-gray-600 pt-4">
-          <h4 className="font-semibold mb-3 text-white">Edit Set</h4>
-          <p className="text-gray-400">Set management functionality coming soon...</p>
+          <h4 className="font-semibold mb-3 text-white">Edit Set: {emotionSets.find(s => s.id === selectedSet)?.name}</h4>
+          
+          {/* Assets Assignment for Set */}
+          <div className="mb-6">
+            <div className="flex justify-between items-center mb-3">
+              <h5 className="font-medium text-gray-300">Available Assets</h5>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700 transition-colors"
+              >
+                Upload New Asset
+              </button>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
+              {assets.map(asset => (
+                <div
+                  key={asset.id}
+                  className="p-3 bg-gray-700 rounded border border-gray-600 hover:bg-gray-600 transition-colors cursor-pointer"
+                  onClick={() => handleAssetSelect(asset.id)}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {/* Asset Preview */}
+                      <div className="w-8 h-8 bg-gray-600 rounded border border-gray-500 flex items-center justify-center">
+                        {asset.data ? (
+                          <img 
+                            src={asset.data} 
+                            alt={asset.name}
+                            className="w-full h-full object-cover rounded"
+                          />
+                        ) : (
+                          <span className="text-xs text-gray-400">IMG</span>
+                        )}
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium text-white">{asset.name}</div>
+                        <div className="text-xs text-gray-400">{asset.type}</div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteAsset(asset.id);
+                      }}
+                      className="text-red-400 hover:text-red-300 text-sm transition-colors"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Emotions in Set */}
+          <div>
+            <h5 className="font-medium text-gray-300 mb-3">Emotions in Set</h5>
+            <div className="space-y-2">
+              {emotions.map(emotion => (
+                <div
+                  key={emotion.id}
+                  className="flex items-center justify-between p-2 bg-gray-700 rounded border border-gray-600"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-white">{emotion.displayName || emotion.name}</span>
+                    <span className="text-xs text-gray-400">
+                      ({Object.values(emotion.assets || {}).flat().length} assets)
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (selectedSet && selectedAsset) {
+                        handleAssignAssetToEmotion(emotion.id, selectedAsset);
+                      }
+                    }}
+                    disabled={!selectedAsset}
+                    className={`px-3 py-1 text-xs rounded transition-colors ${
+                      selectedAsset
+                        ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                        : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                    }`}
+                  >
+                    {selectedAsset ? 'Assign Selected Asset' : 'Select Asset First'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -429,92 +515,173 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
         </div>
       )}
 
-      <div className="grid gap-2">
-        {assets.map(asset => (
-          <div
-            key={asset.id}
-            className={`p-3 border rounded cursor-pointer transition-colors ${
-              selectedAsset === asset.id 
-                ? 'border-blue-400 bg-blue-900/30 text-white' 
-                : 'border-gray-600 bg-gray-800 text-gray-200 hover:bg-gray-700'
-            }`}
-            onClick={() => handleAssetSelect(asset.id)}
-          >
-            <div className="flex justify-between items-center">
-              <span className="font-medium">{asset.name}</span>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDeleteAsset(asset.id);
-                }}
-                className="text-red-400 hover:text-red-300 transition-colors"
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Asset List */}
+        <div className="space-y-2">
+          <h4 className="font-medium text-gray-300">Asset Library</h4>
+          <div className="max-h-96 overflow-y-auto space-y-2">
+            {assets.map(asset => (
+              <div
+                key={asset.id}
+                className={`p-3 border rounded cursor-pointer transition-colors ${
+                  selectedAsset === asset.id 
+                    ? 'border-blue-400 bg-blue-900/30 text-white' 
+                    : 'border-gray-600 bg-gray-800 text-gray-200 hover:bg-gray-700'
+                }`}
+                onClick={() => handleAssetSelect(asset.id)}
               >
-                Delete
-              </button>
-            </div>
-            <div className="text-sm text-gray-400">
-              Type: {asset.type}
-            </div>
+                <div className="flex items-center gap-3">
+                  {/* Asset Thumbnail */}
+                  <div className="w-12 h-12 bg-gray-600 rounded border border-gray-500 flex items-center justify-center flex-shrink-0">
+                    {asset.data ? (
+                      <img 
+                        src={asset.data} 
+                        alt={asset.name}
+                        className="w-full h-full object-cover rounded"
+                      />
+                    ) : (
+                      <span className="text-xs text-gray-400">IMG</span>
+                    )}
+                  </div>
+                  
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="font-medium text-white truncate">{asset.name}</div>
+                        <div className="text-sm text-gray-400">
+                          {asset.type} • {asset.category}
+                        </div>
+                        {asset.width && asset.height && (
+                          <div className="text-xs text-gray-500">
+                            {asset.width}×{asset.height}px
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteAsset(asset.id);
+                        }}
+                        className="text-red-400 hover:text-red-300 transition-colors text-sm"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
+
+        {/* Asset Preview with Stickman */}
+        <div className="space-y-4">
+          <h4 className="font-medium text-gray-300">Preview</h4>
+          <div className="bg-gray-700 rounded-lg p-4 h-80 flex items-center justify-center">
+            {selectedAssetData ? (
+              <div className="relative">
+                {/* Stickman Base */}
+                <StickmanViewer
+                  pose={{
+                    head: { expression: 'neutral', rotation: 0 },
+                    body: { lean: 0 },
+                    leftArm: { rotation: 45, bend: 30 },
+                    rightArm: { rotation: -45, bend: 30 },
+                    leftLeg: { rotation: 0, bend: 15 },
+                    rightLeg: { rotation: 0, bend: 15 }
+                  }}
+                  size={200}
+                />
+                
+                {/* Asset Overlay */}
+                <div 
+                  className="absolute inset-0 pointer-events-none flex items-center justify-center"
+                  style={{
+                    transform: `translate(${selectedAssetData.transform?.offsetX || 0}px, ${selectedAssetData.transform?.offsetY || 0}px)`,
+                  }}
+                >
+                  <img
+                    src={selectedAssetData.data}
+                    alt={selectedAssetData.name}
+                    className="max-w-none"
+                    style={{
+                      transform: `scale(${selectedAssetData.transform?.scale || 1}) rotate(${selectedAssetData.transform?.rotation || 0}deg)`,
+                      maxWidth: '100px',
+                      maxHeight: '100px',
+                    }}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="text-center text-gray-400">
+                <div className="text-2xl mb-2">👆</div>
+                <p>Select an asset to preview</p>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {selectedAssetData && (
         <div className="border-t border-gray-600 pt-4">
-          <h4 className="font-semibold mb-3 text-white">Edit Asset: {selectedAssetData.name}</h4>
+          <h4 className="font-semibold mb-3 text-white">Transform Asset: {selectedAssetData.name}</h4>
           
-          <div className="space-y-3">
-            <div>
-              <label className="block text-sm font-medium mb-1 text-gray-300">Offset X</label>
-              <input
-                type="range"
-                min="-200"
-                max="200"
-                value={selectedAssetData.transform?.offsetX || 0}
-                onChange={(e) => handleAssetTransformChange(selectedAsset!, { offsetX: parseInt(e.target.value) })}
-                className="w-full accent-blue-500"
-              />
-              <span className="text-sm text-gray-400">{selectedAssetData.transform?.offsetX || 0}px</span>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium mb-1 text-gray-300">Offset X</label>
+                <input
+                  type="range"
+                  min="-200"
+                  max="200"
+                  value={selectedAssetData.transform?.offsetX || 0}
+                  onChange={(e) => handleAssetTransformChange(selectedAsset!, { offsetX: parseInt(e.target.value) })}
+                  className="w-full accent-blue-500"
+                />
+                <span className="text-sm text-gray-400">{selectedAssetData.transform?.offsetX || 0}px</span>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1 text-gray-300">Offset Y</label>
+                <input
+                  type="range"
+                  min="-200"
+                  max="200"
+                  value={selectedAssetData.transform?.offsetY || 0}
+                  onChange={(e) => handleAssetTransformChange(selectedAsset!, { offsetY: parseInt(e.target.value) })}
+                  className="w-full accent-blue-500"
+                />
+                <span className="text-sm text-gray-400">{selectedAssetData.transform?.offsetY || 0}px</span>
+              </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-1 text-gray-300">Offset Y</label>
-              <input
-                type="range"
-                min="-200"
-                max="200"
-                value={selectedAssetData.transform?.offsetY || 0}
-                onChange={(e) => handleAssetTransformChange(selectedAsset!, { offsetY: parseInt(e.target.value) })}
-                className="w-full accent-blue-500"
-              />
-              <span className="text-sm text-gray-400">{selectedAssetData.transform?.offsetY || 0}px</span>
-            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium mb-1 text-gray-300">Scale</label>
+                <input
+                  type="range"
+                  min="0.1"
+                  max="2"
+                  step="0.1"
+                  value={selectedAssetData.transform?.scale || 1}
+                  onChange={(e) => handleAssetTransformChange(selectedAsset!, { scale: parseFloat(e.target.value) })}
+                  className="w-full accent-blue-500"
+                />
+                <span className="text-sm text-gray-400">{selectedAssetData.transform?.scale || 1}x</span>
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-1 text-gray-300">Scale</label>
-              <input
-                type="range"
-                min="0.1"
-                max="2"
-                step="0.1"
-                value={selectedAssetData.transform?.scale || 1}
-                onChange={(e) => handleAssetTransformChange(selectedAsset!, { scale: parseFloat(e.target.value) })}
-                className="w-full accent-blue-500"
-              />
-              <span className="text-sm text-gray-400">{selectedAssetData.transform?.scale || 1}x</span>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-1 text-gray-300">Rotation</label>
-              <input
-                type="range"
-                min="-180"
-                max="180"
-                value={selectedAssetData.transform?.rotation || 0}
-                onChange={(e) => handleAssetTransformChange(selectedAsset!, { rotation: parseInt(e.target.value) })}
-                className="w-full accent-blue-500"
-              />
-              <span className="text-sm text-gray-400">{selectedAssetData.transform?.rotation || 0}°</span>
+              <div>
+                <label className="block text-sm font-medium mb-1 text-gray-300">Rotation</label>
+                <input
+                  type="range"
+                  min="-180"
+                  max="180"
+                  value={selectedAssetData.transform?.rotation || 0}
+                  onChange={(e) => handleAssetTransformChange(selectedAsset!, { rotation: parseInt(e.target.value) })}
+                  className="w-full accent-blue-500"
+                />
+                <span className="text-sm text-gray-400">{selectedAssetData.transform?.rotation || 0}°</span>
+              </div>
             </div>
           </div>
         </div>
@@ -629,41 +796,145 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
         </div>
       </div>
 
-      {/* Right Panel - Sticky Preview */}
+      {/* Right Panel - Live Preview */}
       <div className="w-96 bg-gray-800 border-l border-gray-700 flex flex-col">
         <div className="p-4 border-b border-gray-700">
-          <h3 className="text-lg font-semibold text-white">Preview</h3>
+          <h3 className="text-lg font-semibold text-white">Live Preview</h3>
+          {selectedEmotionData && (
+            <div className="mt-2">
+              <span 
+                className="px-2 py-1 rounded text-xs font-semibold"
+                style={{ 
+                  backgroundColor: selectedEmotionData.color + '20',
+                  color: selectedEmotionData.color
+                }}
+              >
+                {selectedEmotionData.displayName || selectedEmotionData.name}
+              </span>
+            </div>
+          )}
         </div>
         
-        <div className="flex-1 p-4">
-          <div className="aspect-square bg-gray-700 rounded-lg mb-4 border border-gray-600">
-            <StickmanViewer
-              pose={{
-                head: { expression: 'neutral', rotation: 0 },
-                body: { lean: 0 },
-                leftArm: { rotation: 45, bend: 30 },
-                rightArm: { rotation: -45, bend: 30 },
-                leftLeg: { rotation: 0, bend: 15 },
-                rightLeg: { rotation: 0, bend: 15 }
-              }}
-              size={300}
-            />
+        <div className="flex-1 p-4 space-y-4">
+          {/* Current Emotion Preview */}
+          <div className="bg-gray-700 rounded-lg p-4">
+            <h4 className="text-sm font-medium text-gray-300 mb-3">Current Emotion</h4>
+            <div className="aspect-square bg-gray-600 rounded-lg flex items-center justify-center relative">
+              {selectedEmotionData ? (
+                <div className="relative">
+                  {/* Base Stickman */}
+                  <StickmanViewer
+                    pose={{
+                      head: { expression: selectedEmotionData.name as any, rotation: 0 },
+                      body: { lean: 0 },
+                      leftArm: { rotation: 45, bend: 30 },
+                      rightArm: { rotation: -45, bend: 30 },
+                      leftLeg: { rotation: 0, bend: 15 },
+                      rightLeg: { rotation: 0, bend: 15 }
+                    }}
+                    size={250}
+                  />
+                  
+                  {/* Render Assets */}
+                  {selectedEmotionData.assets?.accessories?.map((assetId: string) => {
+                    const asset = assets.find(a => a.id === assetId);
+                    if (!asset) return null;
+                    
+                    return (
+                      <div 
+                        key={assetId}
+                        className="absolute inset-0 pointer-events-none flex items-center justify-center"
+                        style={{
+                          transform: `translate(${asset.transform?.offsetX || 0}px, ${asset.transform?.offsetY || 0}px)`,
+                        }}
+                      >
+                        <img
+                          src={asset.data}
+                          alt={asset.name}
+                          className="max-w-none"
+                          style={{
+                            transform: `scale(${asset.transform?.scale || 1}) rotate(${asset.transform?.rotation || 0}deg)`,
+                            maxWidth: '60px',
+                            maxHeight: '60px',
+                          }}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center text-gray-400">
+                  <div className="text-2xl mb-2">🎭</div>
+                  <p className="text-sm">Select an emotion</p>
+                </div>
+              )}
+            </div>
           </div>
-          
-          <VideoExporter
-            segments={[]}
-            audioFile={audioFile}
-          />
+
+          {/* Asset Quick Info */}
+          {selectedAssetData && (
+            <div className="bg-gray-700 rounded-lg p-4">
+              <h4 className="text-sm font-medium text-gray-300 mb-3">Selected Asset</h4>
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-gray-600 rounded border border-gray-500 flex items-center justify-center">
+                  <img 
+                    src={selectedAssetData.data} 
+                    alt={selectedAssetData.name}
+                    className="w-full h-full object-cover rounded"
+                  />
+                </div>
+                <div>
+                  <div className="text-white font-medium">{selectedAssetData.name}</div>
+                  <div className="text-sm text-gray-400">{selectedAssetData.type} • {selectedAssetData.category}</div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    Offset: {selectedAssetData.transform?.offsetX || 0}x, {selectedAssetData.transform?.offsetY || 0}y
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Set Info */}
+          {selectedSet && (
+            <div className="bg-gray-700 rounded-lg p-4">
+              <h4 className="text-sm font-medium text-gray-300 mb-3">Active Set</h4>
+              <div className="text-white font-medium">
+                {emotionSets.find(s => s.id === selectedSet)?.name}
+              </div>
+              <div className="text-sm text-gray-400 mt-1">
+                {emotionSets.find(s => s.id === selectedSet)?.emotions.length || 0} emotions
+              </div>
+            </div>
+          )}
+
+          {/* Stats */}
+          <div className="bg-gray-700 rounded-lg p-4">
+            <h4 className="text-sm font-medium text-gray-300 mb-3">Statistics</h4>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-400">Total Emotions:</span>
+                <span className="text-white">{emotions.length}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Total Assets:</span>
+                <span className="text-white">{assets.length}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Sets Created:</span>
+                <span className="text-white">{emotionSets.length}</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Asset Picker Modal */}
       {showAssetPicker && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 border border-gray-600">
-            <h3 className="text-lg font-semibold mb-4 text-white">Select Asset</h3>
+          <div className="bg-gray-800 rounded-lg p-6 max-w-2xl w-full mx-4 border border-gray-600">
+            <h3 className="text-lg font-semibold mb-4 text-white">Select Asset to Add</h3>
             
-            <div className="max-h-64 overflow-auto space-y-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-auto">
               {assets.map(asset => (
                 <button
                   key={asset.id}
@@ -673,18 +944,55 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
                     }
                     setShowAssetPicker(false);
                   }}
-                  className="w-full text-left p-3 border border-gray-600 rounded hover:bg-gray-700 transition-colors bg-gray-800"
+                  className="text-left p-4 border border-gray-600 rounded-lg hover:bg-gray-700 transition-colors bg-gray-800 hover:border-blue-500"
                 >
-                  <div className="font-medium text-white">{asset.name}</div>
-                  <div className="text-sm text-gray-400">Type: {asset.type}</div>
+                  <div className="flex items-center gap-3">
+                    {/* Asset Preview */}
+                    <div className="w-16 h-16 bg-gray-600 rounded border border-gray-500 flex items-center justify-center flex-shrink-0">
+                      {asset.data ? (
+                        <img 
+                          src={asset.data} 
+                          alt={asset.name}
+                          className="w-full h-full object-cover rounded"
+                        />
+                      ) : (
+                        <span className="text-xs text-gray-400">IMG</span>
+                      )}
+                    </div>
+                    
+                    {/* Asset Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-white truncate">{asset.name}</div>
+                      <div className="text-sm text-gray-400">
+                        {asset.type} • {asset.category}
+                      </div>
+                      {asset.width && asset.height && (
+                        <div className="text-xs text-gray-500">
+                          {asset.width}×{asset.height}px
+                        </div>
+                      )}
+                      <div className="text-xs text-gray-500 mt-1">
+                        Transform: {asset.transform?.offsetX || 0}x, {asset.transform?.offsetY || 0}y, 
+                        {asset.transform?.scale || 1}×, {asset.transform?.rotation || 0}°
+                      </div>
+                    </div>
+                  </div>
                 </button>
               ))}
             </div>
             
+            {assets.length === 0 && (
+              <div className="text-center py-8 text-gray-400">
+                <div className="text-2xl mb-2">📎</div>
+                <p>No assets available</p>
+                <p className="text-sm mt-1">Upload some assets first in the Assets tab</p>
+              </div>
+            )}
+            
             <div className="flex justify-end gap-2 mt-4">
               <button
                 onClick={() => setShowAssetPicker(false)}
-                className="px-4 py-2 text-gray-300 hover:text-white transition-colors"
+                className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded transition-colors"
               >
                 Cancel
               </button>

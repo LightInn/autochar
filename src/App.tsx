@@ -230,8 +230,8 @@ function App() {
         </div>
       </div>
 
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-900 text-white">
-        <div className="w-full max-w-4xl mx-auto p-4">
+      <div className="flex-1 bg-gray-900 text-white">
+        <div className="w-full max-w-4xl mx-auto p-4 min-h-full flex flex-col justify-center">
           {/* Stepper */}
           <div className="flex items-center justify-center mb-8">
             <div className="flex items-center text-blue-500">
