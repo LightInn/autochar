@@ -1,0 +1,39 @@
+{
+  "segments": [
+    {
+      "start": 0,
+      "end": 2,
+      "text": "Salut, comment ça va ?",
+      "emotion": "happy",
+      "intensity": 0.8
+    },
+    {
+      "start": 2,
+      "end": 4,
+      "text": "Oh non, c'est pas possible !",
+      "emotion": "angry",
+      "intensity": 0.9
+    },
+    {
+      "start": 4,
+      "end": 6,
+      "text": "Hmmm, je suis pas sûr...",
+      "emotion": "confused",
+      "intensity": 0.6
+    },
+    {
+      "start": 6,
+      "end": 8,
+      "text": "Ah ! Quelle surprise !",
+      "emotion": "surprised",
+      "intensity": 0.85
+    },
+    {
+      "start": 8,
+      "end": 12,
+      "text": "Bon, on va voir ce que ça donne.",
+      "emotion": "neutral",
+      "intensity": 0.3
+    }
+  ]
+}

@@ -9,6 +9,7 @@ import IntentionAnalysis from "./components/IntentionAnalysis";
 import StickmanPreview from "./components/StickmanPreview";
 import StickmanEditorPage from "./components/StickmanEditorPage";
 import VideoExporter from "./components/VideoExporter";
+import VideoExporterTest from "./components/VideoExporterTest";
 
 function App() {
   const [file, setFile] = useState<File | null>(null);
@@ -17,7 +18,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [transcriptionStatus, setTranscriptionStatus] = useState('');
-  const [currentPage, setCurrentPage] = useState<'main' | 'editor'>('main');
+  const [currentPage, setCurrentPage] = useState<'main' | 'editor' | 'test'>('main');
   const [customPoses, setCustomPoses] = useState<Record<EmotionType, StickmanPose>>(EMOTION_POSES);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -127,6 +128,28 @@ function App() {
     );
   }
 
+  // Si on est sur la page de test, afficher cette page
+  if (currentPage === 'test') {
+    return (
+      <div className="min-h-screen bg-gray-900">
+        <div className="bg-gray-800 border-b border-gray-700">
+          <div className="max-w-7xl mx-auto px-4 py-4">
+            <div className="flex items-center justify-between">
+              <h1 className="text-2xl font-bold text-white">🧪 Test Export Vidéo</h1>
+              <button
+                onClick={() => setCurrentPage('main')}
+                className="bg-gray-600 hover:bg-gray-500 text-white px-4 py-2 rounded-lg transition-colors"
+              >
+                ← Retour
+              </button>
+            </div>
+          </div>
+        </div>
+        <VideoExporterTest />
+      </div>
+    );
+  }
+
   return (
     <>
       {/* Header avec Navigation */}
@@ -138,12 +161,20 @@ function App() {
               <span className="text-gray-400 text-sm">Audio → Intention → Animation</span>
             </div>
             
-            <button
-              onClick={() => setCurrentPage('editor')}
-              className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white px-4 py-2 rounded-lg transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-xl"
-            >
-              🎨 Éditeur de Stickman
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setCurrentPage('test')}
+                className="bg-yellow-600 hover:bg-yellow-500 text-white px-3 py-2 rounded-lg transition-colors text-sm"
+              >
+                🧪 Test Export
+              </button>
+              <button
+                onClick={() => setCurrentPage('editor')}
+                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white px-4 py-2 rounded-lg transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-xl"
+              >
+                🎨 Éditeur de Stickman
+              </button>
+            </div>
           </div>
         </div>
       </div>
