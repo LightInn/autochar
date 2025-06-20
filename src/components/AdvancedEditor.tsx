@@ -52,6 +52,16 @@ const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, onSave })
       color: `#${Math.floor(Math.random()*16777215).toString(16)}`,
       description: 'Décrivez cette émotion et ses déclencheurs',
       assets: {},
+      assetTransforms: {
+        head: { offsetX: 0, offsetY: 0, scale: 1, rotation: 0 },
+        face: { offsetX: 0, offsetY: 0, scale: 1, rotation: 0 },
+        body: { offsetX: 0, offsetY: 0, scale: 1, rotation: 0 },
+        leftArm: { offsetX: 0, offsetY: 0, scale: 1, rotation: 0 },
+        rightArm: { offsetX: 0, offsetY: 0, scale: 1, rotation: 0 },
+        leftLeg: { offsetX: 0, offsetY: 0, scale: 1, rotation: 0 },
+        rightLeg: { offsetX: 0, offsetY: 0, scale: 1, rotation: 0 },
+        background: { offsetX: 0, offsetY: 0, scale: 1, rotation: 0 }
+      },
       animationSettings: {
         audioReactivity: 0.5,
         reactiveElements: { head: true, face: false, body: false, arms: false, legs: false },
@@ -506,6 +516,147 @@ const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, onSave })
                             )}
                           </div>
                         ))}
+                      </div>
+                    </div>
+
+                    {/* Ajustements de position/taille pour chaque asset */}
+                    <div className="mt-6">
+                      <h4 className="text-lg font-bold mb-4">⚙️ Ajustements des Assets</h4>
+                      <div className="space-y-4">
+                        {Object.entries(selectedEmotion.assets).map(([category, assetData]) => {
+                          if (!assetData) return null;
+                          
+                          const transform = selectedEmotion.assetTransforms?.[category as keyof typeof selectedEmotion.assetTransforms] || {
+                            offsetX: 0,
+                            offsetY: 0,
+                            scale: 1,
+                            rotation: 0
+                          };
+
+                          return (
+                            <div key={category} className="bg-gray-700 p-4 rounded-lg">
+                              <div className="flex items-center gap-3 mb-3">
+                                <img 
+                                  src={assetData}
+                                  alt={category}
+                                  className="w-8 h-8 object-contain"
+                                />
+                                <h5 className="font-medium capitalize">{category}</h5>
+                              </div>
+                              
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <label className="block text-xs text-gray-400 mb-1">Position X</label>
+                                  <input
+                                    type="range"
+                                    min="-100"
+                                    max="100"
+                                    value={transform.offsetX}
+                                    onChange={(e) => {
+                                      const newTransforms = {
+                                        ...selectedEmotion.assetTransforms,
+                                        [category]: {
+                                          ...transform,
+                                          offsetX: parseInt(e.target.value)
+                                        }
+                                      };
+                                      handleUpdateEmotion({ assetTransforms: newTransforms });
+                                    }}
+                                    className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer"
+                                  />
+                                  <span className="text-xs text-gray-400">{transform.offsetX}px</span>
+                                </div>
+                                
+                                <div>
+                                  <label className="block text-xs text-gray-400 mb-1">Position Y</label>
+                                  <input
+                                    type="range"
+                                    min="-100"
+                                    max="100"
+                                    value={transform.offsetY}
+                                    onChange={(e) => {
+                                      const newTransforms = {
+                                        ...selectedEmotion.assetTransforms,
+                                        [category]: {
+                                          ...transform,
+                                          offsetY: parseInt(e.target.value)
+                                        }
+                                      };
+                                      handleUpdateEmotion({ assetTransforms: newTransforms });
+                                    }}
+                                    className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer"
+                                  />
+                                  <span className="text-xs text-gray-400">{transform.offsetY}px</span>
+                                </div>
+                                
+                                <div>
+                                  <label className="block text-xs text-gray-400 mb-1">Taille</label>
+                                  <input
+                                    type="range"
+                                    min="0.1"
+                                    max="3"
+                                    step="0.1"
+                                    value={transform.scale}
+                                    onChange={(e) => {
+                                      const newTransforms = {
+                                        ...selectedEmotion.assetTransforms,
+                                        [category]: {
+                                          ...transform,
+                                          scale: parseFloat(e.target.value)
+                                        }
+                                      };
+                                      handleUpdateEmotion({ assetTransforms: newTransforms });
+                                    }}
+                                    className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer"
+                                  />
+                                  <span className="text-xs text-gray-400">{transform.scale.toFixed(1)}x</span>
+                                </div>
+                                
+                                <div>
+                                  <label className="block text-xs text-gray-400 mb-1">Rotation</label>
+                                  <input
+                                    type="range"
+                                    min="-180"
+                                    max="180"
+                                    value={transform.rotation}
+                                    onChange={(e) => {
+                                      const newTransforms = {
+                                        ...selectedEmotion.assetTransforms,
+                                        [category]: {
+                                          ...transform,
+                                          rotation: parseInt(e.target.value)
+                                        }
+                                      };
+                                      handleUpdateEmotion({ assetTransforms: newTransforms });
+                                    }}
+                                    className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer"
+                                  />
+                                  <span className="text-xs text-gray-400">{transform.rotation}°</span>
+                                </div>
+                              </div>
+                              
+                              <div className="mt-2 flex gap-2">
+                                <button
+                                  onClick={() => {
+                                    const newTransforms = {
+                                      ...selectedEmotion.assetTransforms,
+                                      [category]: {
+                                        offsetX: 0,
+                                        offsetY: 0,
+                                        scale: 1,
+                                        rotation: 0
+                                      }
+                                    };
+                                    handleUpdateEmotion({ assetTransforms: newTransforms });
+                                  }}
+                                  className="bg-gray-600 hover:bg-gray-500 text-white text-xs px-2 py-1 rounded transition-colors"
+                                >
+                                  Réinitialiser
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>

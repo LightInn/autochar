@@ -440,6 +440,25 @@ function App() {
                         <span className="text-xs bg-gray-600 px-2 py-1 rounded">
                           {Math.round(segment.confidence * 100)}%
                         </span>
+                        <select
+                          value={segment.customEmotion?.id || ''}
+                          onChange={(e) => {
+                            const newEmotionId = e.target.value;
+                            const newEmotion = emotions.find(em => em.id === newEmotionId);
+                            const updatedAnalysis = intentionAnalysis.map((seg, idx) => 
+                              idx === index ? { ...seg, customEmotion: newEmotion } : seg
+                            );
+                            setIntentionAnalysis(updatedAnalysis);
+                          }}
+                          className="text-xs bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white"
+                        >
+                          <option value="">Auto</option>
+                          {emotions.map(emotion => (
+                            <option key={emotion.id} value={emotion.id}>
+                              {emotion.displayName}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                     </div>
                     <p className="text-gray-300 mb-2">"{segment.text}"</p>

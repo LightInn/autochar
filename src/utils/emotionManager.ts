@@ -6,9 +6,17 @@ export interface CustomEmotion {
   color: string;
   description: string;
   assets: EmotionAssets;
+  assetTransforms: EmotionAssetTransforms;
   animationSettings: AnimationSettings;
   created: Date;
   modified: Date;
+}
+
+export interface AssetTransform {
+  offsetX: number;
+  offsetY: number;
+  scale: number;
+  rotation: number;
 }
 
 export interface EmotionAssets {
@@ -23,6 +31,17 @@ export interface EmotionAssets {
   // Assets additionnels
   accessories?: string[];
   effects?: string[];
+}
+
+export interface EmotionAssetTransforms {
+  head?: AssetTransform;
+  face?: AssetTransform;
+  body?: AssetTransform;
+  leftArm?: AssetTransform;
+  rightArm?: AssetTransform;
+  leftLeg?: AssetTransform;
+  rightLeg?: AssetTransform;
+  background?: AssetTransform;
 }
 
 export interface AnimationSettings {
@@ -47,6 +66,25 @@ export interface AnimationSettings {
   easing: 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out' | 'bounce';
 }
 
+// Transformations par défaut
+const DEFAULT_TRANSFORM: AssetTransform = {
+  offsetX: 0,
+  offsetY: 0,
+  scale: 1,
+  rotation: 0
+};
+
+const DEFAULT_ASSET_TRANSFORMS: EmotionAssetTransforms = {
+  head: { ...DEFAULT_TRANSFORM },
+  face: { ...DEFAULT_TRANSFORM },
+  body: { ...DEFAULT_TRANSFORM },
+  leftArm: { ...DEFAULT_TRANSFORM },
+  rightArm: { ...DEFAULT_TRANSFORM },
+  leftLeg: { ...DEFAULT_TRANSFORM },
+  rightLeg: { ...DEFAULT_TRANSFORM },
+  background: { ...DEFAULT_TRANSFORM }
+};
+
 // Émotions par défaut
 export const DEFAULT_EMOTIONS: CustomEmotion[] = [
   {
@@ -56,6 +94,7 @@ export const DEFAULT_EMOTIONS: CustomEmotion[] = [
     color: '#6B7280',
     description: 'État neutre, calme',
     assets: {},
+    assetTransforms: DEFAULT_ASSET_TRANSFORMS,
     animationSettings: {
       audioReactivity: 0.2,
       reactiveElements: { head: true, face: false, body: false, arms: false, legs: false },
@@ -73,6 +112,7 @@ export const DEFAULT_EMOTIONS: CustomEmotion[] = [
     color: '#10B981',
     description: 'Joie, bonheur, excitation positive',
     assets: {},
+    assetTransforms: DEFAULT_ASSET_TRANSFORMS,
     animationSettings: {
       audioReactivity: 0.8,
       reactiveElements: { head: true, face: true, body: true, arms: true, legs: false },
@@ -90,6 +130,7 @@ export const DEFAULT_EMOTIONS: CustomEmotion[] = [
     color: '#EF4444',
     description: 'Colère, frustration, agacement',
     assets: {},
+    assetTransforms: DEFAULT_ASSET_TRANSFORMS,
     animationSettings: {
       audioReactivity: 0.9,
       reactiveElements: { head: true, face: true, body: true, arms: true, legs: false },
@@ -107,6 +148,7 @@ export const DEFAULT_EMOTIONS: CustomEmotion[] = [
     color: '#3B82F6',
     description: 'Tristesse, mélancolie',
     assets: {},
+    assetTransforms: DEFAULT_ASSET_TRANSFORMS,
     animationSettings: {
       audioReactivity: 0.3,
       reactiveElements: { head: true, face: false, body: false, arms: false, legs: false },
@@ -124,6 +166,7 @@ export const DEFAULT_EMOTIONS: CustomEmotion[] = [
     color: '#F59E0B',
     description: 'Surprise, étonnement',
     assets: {},
+    assetTransforms: DEFAULT_ASSET_TRANSFORMS,
     animationSettings: {
       audioReactivity: 0.7,
       reactiveElements: { head: true, face: true, body: false, arms: false, legs: false },
@@ -141,6 +184,7 @@ export const DEFAULT_EMOTIONS: CustomEmotion[] = [
     color: '#8B5CF6',
     description: 'Confusion, questionnement',
     assets: {},
+    assetTransforms: DEFAULT_ASSET_TRANSFORMS,
     animationSettings: {
       audioReactivity: 0.4,
       reactiveElements: { head: true, face: false, body: false, arms: false, legs: false },
@@ -215,6 +259,7 @@ export class EmotionManager {
   addEmotion(emotion: Omit<CustomEmotion, 'created' | 'modified'>): CustomEmotion {
     const newEmotion: CustomEmotion = {
       ...emotion,
+      assetTransforms: emotion.assetTransforms || { ...DEFAULT_ASSET_TRANSFORMS },
       created: new Date(),
       modified: new Date()
     };
@@ -232,6 +277,7 @@ export class EmotionManager {
     const updated: CustomEmotion = {
       ...existing,
       ...updates,
+      assetTransforms: updates.assetTransforms || existing.assetTransforms || { ...DEFAULT_ASSET_TRANSFORMS },
       modified: new Date()
     };
 

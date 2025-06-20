@@ -164,12 +164,20 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
       const assetKey = `${emotion.id}_${category}`;
       const img = loadedAssets.current.get(assetKey);
       const position = positions[category as keyof typeof positions];
+      const transform = emotion.assetTransforms?.[category as keyof typeof emotion.assetTransforms];
       
       if (img && position && img.complete) {
         ctx.save();
-        ctx.translate(position.x, position.y);
-        ctx.rotate(position.rotation);
-        ctx.scale(position.scale, position.scale);
+        
+        // Appliquer les transformations personnalisées si elles existent
+        const finalX = position.x + (transform?.offsetX || 0);
+        const finalY = position.y + (transform?.offsetY || 0);
+        const finalScale = position.scale * (transform?.scale || 1);
+        const finalRotation = position.rotation + (transform?.rotation || 0);
+        
+        ctx.translate(finalX, finalY);
+        ctx.rotate(finalRotation);
+        ctx.scale(finalScale, finalScale);
         
         // Dessiner l'image centrée
         const width = category === 'background' ? exportSettings.width : img.width || 50;
@@ -239,53 +247,59 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
       ctx.fillText('Aucune émotion définie', canvas.width / 2, canvas.height / 2);
     }
 
-    // Afficher les informations de debug si nécessaire
-    if (exportSettings.timingMethod === 'manual') {
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-      ctx.fillRect(10, 10, 200, 60);
-      ctx.fillStyle = 'white';
-      ctx.font = '12px monospace';
-      ctx.textAlign = 'left';
-      ctx.fillText(`Time: ${time.toFixed(2)}s`, 15, 25);
-      ctx.fillText(`Emotion: ${emotion?.displayName || 'None'}`, 15, 40);
-      ctx.fillText(`Audio: ${audioData ? `${(audioData.volume * 100).toFixed(0)}%` : 'None'}`, 15, 55);
-    }
+    // Afficher les informations de debug
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(10, 10, 250, 80);
+    ctx.fillStyle = 'white';
+    ctx.font = '12px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText(`Time: ${time.toFixed(2)}s`, 15, 25);
+    ctx.fillText(`Emotion: ${emotion?.displayName || 'None'}`, 15, 40);
+    ctx.fillText(`Audio: ${audioData ? `${(audioData.volume * 100).toFixed(0)}%` : 'None'}`, 15, 55);
+    ctx.fillText(`Segments: ${segments.length}`, 15, 70);
   }, [segments, exportSettings, audioAnalysis]);
 
-  // Animation de preview
+  // Animation de preview - logique simplifiée et corrigée
   useEffect(() => {
     if (!isPreviewPlaying) return;
 
     const totalDuration = getTotalDuration();
     if (totalDuration === 0) return;
 
-    const interval = setInterval(() => {
-      setPreviewTime(prevTime => {
-        const newTime = prevTime + 1 / exportSettings.fps;
-        if (newTime >= totalDuration) {
-          setIsPreviewPlaying(false);
-          return 0;
-        }
-        return newTime;
-      });
-    }, 1000 / exportSettings.fps);
+    let animationId: number;
+    let startTime = Date.now();
+    let lastTime = previewTime;
 
-    return () => clearInterval(interval);
-  }, [isPreviewPlaying, exportSettings.fps]);
+    const animate = () => {
+      const currentTime = Date.now();
+      const elapsed = (currentTime - startTime) / 1000;
+      const newTime = lastTime + elapsed;
 
-  // Dessiner la frame de preview
+      if (newTime >= totalDuration) {
+        setPreviewTime(0);
+        setIsPreviewPlaying(false);
+        return;
+      }
+
+      setPreviewTime(newTime);
+      drawFrame(newTime);
+      animationId = requestAnimationFrame(animate);
+    };
+
+    animationId = requestAnimationFrame(animate);
+    return () => {
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+      }
+    };
+  }, [isPreviewPlaying, exportSettings.fps, getTotalDuration]);
+
+  // Redessiner quand le temps change (pour le scrubbing manuel)
   useEffect(() => {
     if (!isPreviewPlaying) {
       drawFrame(previewTime);
     }
   }, [previewTime, drawFrame, isPreviewPlaying]);
-
-  // Animation en temps réel pour la preview
-  useEffect(() => {
-    if (isPreviewPlaying) {
-      drawFrame(previewTime);
-    }
-  }, [previewTime, isPreviewPlaying, drawFrame]);
 
   // Export vidéo
   const startExport = useCallback(async () => {

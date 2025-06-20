@@ -36,7 +36,6 @@ const AssetBasedRenderer: React.FC<AssetBasedRendererProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [loadedAssets, setLoadedAssets] = useState<Map<string, LoadedAsset>>(new Map());
-  const [renderTime, setRenderTime] = useState(0);
   const animationFrameRef = useRef<number | undefined>(undefined);
 
   // Positions par défaut des éléments
@@ -151,7 +150,6 @@ const AssetBasedRenderer: React.FC<AssetBasedRendererProps> = ({
     ctx.clearRect(0, 0, width, height);
     
     const currentTime = timestamp / 1000; // Convertir en secondes
-    setRenderTime(currentTime);
 
     // Ordre de rendu des éléments (arrière vers avant)
     const renderOrder = ['background', 'body', 'leftLeg', 'rightLeg', 'leftArm', 'rightArm', 'head', 'face'];
@@ -163,14 +161,15 @@ const AssetBasedRenderer: React.FC<AssetBasedRendererProps> = ({
       if (loadedAsset?.loaded) {
         const basePosition = defaultPositions[category] || defaultPositions.body;
         const animation = calculateAudioAnimation(currentTime, category);
+        const customTransform = emotion.assetTransforms?.[category as keyof typeof emotion.assetTransforms];
         
         ctx.save();
         
-        // Appliquer les transformations
-        const finalX = basePosition.x + basePosition.offsetX + animation.offsetX;
-        const finalY = basePosition.y + basePosition.offsetY + animation.offsetY;
-        const finalRotation = basePosition.rotation + animation.rotation;
-        const finalScale = basePosition.scale * animation.scale;
+        // Appliquer les transformations (base + custom + animation)
+        const finalX = basePosition.x + (customTransform?.offsetX || 0) + animation.offsetX;
+        const finalY = basePosition.y + (customTransform?.offsetY || 0) + animation.offsetY;
+        const finalRotation = basePosition.rotation + (customTransform?.rotation || 0) + animation.rotation;
+        const finalScale = basePosition.scale * (customTransform?.scale || 1) * animation.scale;
         
         ctx.translate(finalX, finalY);
         ctx.rotate((finalRotation * Math.PI) / 180);
@@ -178,7 +177,12 @@ const AssetBasedRenderer: React.FC<AssetBasedRendererProps> = ({
         
         // Dessiner l'asset centré
         const img = loadedAsset.image;
-        ctx.drawImage(img, -img.width / 2, -img.height / 2);
+        if (category === 'background') {
+          // Pour le background, s'étirer pour remplir tout le canvas
+          ctx.drawImage(img, -width/2, -height/2, width, height);
+        } else {
+          ctx.drawImage(img, -img.width / 2, -img.height / 2);
+        }
         
         ctx.restore();
       } else if (category !== 'background') {
