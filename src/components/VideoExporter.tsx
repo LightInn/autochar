@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import type { EmotionSegment } from '../utils/intentionAnalyzer';
 import type { CustomEmotion } from '../utils/emotionManager';
+import { AssetManager } from '../utils/assetManager';
 import type { AudioAnalysisData } from '../utils/audioAnalyzer';
 
 // Extension du type EmotionSegment pour inclure l'émotion personnalisée
@@ -48,23 +49,48 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const loadedAssets = useRef<Map<string, HTMLImageElement>>(new Map());
+  const assetManager = useRef(new AssetManager()).current;
 
   // Précharger tous les assets des émotions
   useEffect(() => {
     const loadAssets = async () => {
+      const allAssets = assetManager.getAllAssets();
+      
       for (const segment of segments) {
         if (segment.customEmotion?.assets) {
-          for (const [category, assetData] of Object.entries(segment.customEmotion.assets)) {
-            if (assetData && typeof assetData === 'string') {
-              const key = `${segment.customEmotion.id}_${category}`;
-              if (!loadedAssets.current.has(key)) {
-                const img = new Image();
-                img.src = assetData;
-                await new Promise((resolve) => {
-                  img.onload = resolve;
-                  img.onerror = resolve;
-                });
-                loadedAssets.current.set(key, img);
+          // Parcourir les assets de l'émotion (nouvelle structure)
+          for (const [category, assetIds] of Object.entries(segment.customEmotion.assets)) {
+            if (Array.isArray(assetIds)) {
+              // Pour les catégories avec plusieurs assets (accessories, effects)
+              for (const assetId of assetIds) {
+                const assetFile = allAssets.find(a => a.id === assetId);
+                if (assetFile) {
+                  const key = `${segment.customEmotion.id}_${category}_${assetId}`;
+                  if (!loadedAssets.current.has(key)) {
+                    const img = new Image();
+                    img.src = assetFile.data;
+                    await new Promise((resolve) => {
+                      img.onload = resolve;
+                      img.onerror = resolve;
+                    });
+                    loadedAssets.current.set(key, img);
+                  }
+                }
+              }
+            } else if (typeof assetIds === 'string') {
+              // Pour les catégories avec un seul asset (head, body, etc.)
+              const assetFile = allAssets.find(a => a.id === assetIds);
+              if (assetFile) {
+                const key = `${segment.customEmotion.id}_${category}`;
+                if (!loadedAssets.current.has(key)) {
+                  const img = new Image();
+                  img.src = assetFile.data;
+                  await new Promise((resolve) => {
+                    img.onload = resolve;
+                    img.onerror = resolve;
+                  });
+                  loadedAssets.current.set(key, img);
+                }
               }
             }
           }
@@ -73,7 +99,7 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
     };
     
     loadAssets();
-  }, [segments]);
+  }, [segments, assetManager]);
 
   // Fonction pour détecter les codecs supportés
   const getSupportedMimeType = () => {
@@ -159,12 +185,20 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
 
     // Ordre de rendu (arrière vers avant)
     const renderOrder = ['background', 'body', 'leftLeg', 'rightLeg', 'leftArm', 'rightArm', 'head', 'face'];
+    const allAssets = assetManager.getAllAssets();
 
     for (const category of renderOrder) {
       const assetKey = `${emotion.id}_${category}`;
       const img = loadedAssets.current.get(assetKey);
       const position = positions[category as keyof typeof positions];
-      const transform = emotion.assetTransforms?.[category as keyof typeof emotion.assetTransforms];
+      
+      // Get transform from asset file instead of emotion
+      let transform = null;
+      if (emotion.assets[category as keyof typeof emotion.assets]) {
+        const assetId = emotion.assets[category as keyof typeof emotion.assets] as string;
+        const assetFile = allAssets.find(a => a.id === assetId);
+        transform = assetFile?.transform;
+      }
       
       if (img && position && img.complete) {
         ctx.save();
@@ -247,16 +281,7 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
       ctx.fillText('Aucune émotion définie', canvas.width / 2, canvas.height / 2);
     }
 
-    // Afficher les informations de debug
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    ctx.fillRect(10, 10, 250, 80);
-    ctx.fillStyle = 'white';
-    ctx.font = '12px monospace';
-    ctx.textAlign = 'left';
-    ctx.fillText(`Time: ${time.toFixed(2)}s`, 15, 25);
-    ctx.fillText(`Emotion: ${emotion?.displayName || 'None'}`, 15, 40);
-    ctx.fillText(`Audio: ${audioData ? `${(audioData.volume * 100).toFixed(0)}%` : 'None'}`, 15, 55);
-    ctx.fillText(`Segments: ${segments.length}`, 15, 70);
+    // Debug info overlay disabled for video export
   }, [segments, exportSettings, audioAnalysis]);
 
   // Animation de preview - logique simplifiée et corrigée

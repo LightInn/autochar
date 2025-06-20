@@ -1,904 +1,688 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { emotionManager, type CustomEmotion } from '../utils/emotionManager';
-import { assetManager, type AssetFile } from '../utils/assetManager';
-import { audioAnalyzer, type AudioAnalysisData } from '../utils/audioAnalyzer';
-import AssetBasedRenderer from './AssetBasedRenderer';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { EmotionManager } from '../utils/emotionManager';
+import { AssetManager, type AssetFile } from '../utils/assetManager';
+import StickmanViewer from './StickmanViewer';
+import VideoExporter from './VideoExporter';
 
-interface AdvancedEditorProps {
-  onBackToMain: () => void;
-  onSave: (emotions: CustomEmotion[]) => void;
+type TabType = 'emotions' | 'sets' | 'assets';
+
+interface AssetTransform {
+  offsetX: number;
+  offsetY: number;
+  scale: number;
+  rotation: number;
 }
 
-const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, onSave }) => {
-  const [emotions, setEmotions] = useState<CustomEmotion[]>([]);
-  const [selectedEmotion, setSelectedEmotion] = useState<CustomEmotion | null>(null);
-  const [activeTab, setActiveTab] = useState<'emotions' | 'assets'>('emotions');
+interface EmotionSet {
+  id: string;
+  name: string;
+  emotions: string[];
+}
+
+interface AdvancedEditorProps {
+  onBackToMain?: () => void;
+  onSave?: (emotions: any[]) => void;
+}
+
+export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, onSave }) => {
+  const [emotions, setEmotions] = useState<any[]>([]);
   const [assets, setAssets] = useState<AssetFile[]>([]);
-  const [selectedAssetCategory, setSelectedAssetCategory] = useState<AssetFile['category']>('head');
+  const [emotionSets, setEmotionSets] = useState<EmotionSet[]>([]);
+  const [selectedEmotion, setSelectedEmotion] = useState<string | null>(null);
+  const [selectedAsset, setSelectedAsset] = useState<string | null>(null);
+  const [selectedSet, setSelectedSet] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<TabType>('emotions');
+  const [isPlaying, setIsPlaying] = useState(false);
   const [audioFile, setAudioFile] = useState<File | null>(null);
-  const [audioAnalysis, setAudioAnalysis] = useState<AudioAnalysisData[]>([]);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [showAssetUpload, setShowAssetUpload] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [showAssetPicker, setShowAssetPicker] = useState(false);
-  const [assetPickerCategory, setAssetPickerCategory] = useState<keyof CustomEmotion['assets']>('head');
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
+  
+  // Create manager instances
+  const emotionManager = useRef(new EmotionManager()).current;
+  const assetManager = useRef(new AssetManager()).current;
 
-  // Charger les données au démarrage
   useEffect(() => {
     loadData();
   }, []);
 
-  const loadData = async () => {
-    const loadedEmotions = emotionManager.getAllEmotions();
-    const loadedAssets = assetManager.getAllAssets();
-    
-    setEmotions(loadedEmotions);
-    setAssets(loadedAssets);
-    
-    if (loadedEmotions.length > 0) {
-      setSelectedEmotion(loadedEmotions[0]);
+  const loadData = useCallback(async () => {
+    try {
+      const [emotionsData, assetsData] = await Promise.all([
+        Promise.resolve(emotionManager.getAllEmotions()),
+        Promise.resolve(assetManager.getAllAssets())
+      ]);
+      setEmotions(emotionsData);
+      setAssets(assetsData);
+    } catch (error) {
+      console.error('Error loading data:', error);
     }
+  }, [emotionManager, assetManager]);
+
+  const handleEmotionSelect = (emotionId: string) => {
+    setSelectedEmotion(emotionId);
+    setSelectedAsset(null);
   };
 
-  // Gestion des émotions
-  const handleAddEmotion = () => {
-    const newEmotion: Omit<CustomEmotion, 'created' | 'modified'> = {
-      id: `emotion_${Date.now()}`,
-      name: `emotion_${Date.now()}`,
-      displayName: 'Nouvelle Émotion',
-      color: `#${Math.floor(Math.random()*16777215).toString(16)}`,
-      description: 'Décrivez cette émotion et ses déclencheurs',
-      assets: {},
-      assetTransforms: {
-        head: { offsetX: 0, offsetY: 0, scale: 1, rotation: 0 },
-        face: { offsetX: 0, offsetY: 0, scale: 1, rotation: 0 },
-        body: { offsetX: 0, offsetY: 0, scale: 1, rotation: 0 },
-        leftArm: { offsetX: 0, offsetY: 0, scale: 1, rotation: 0 },
-        rightArm: { offsetX: 0, offsetY: 0, scale: 1, rotation: 0 },
-        leftLeg: { offsetX: 0, offsetY: 0, scale: 1, rotation: 0 },
-        rightLeg: { offsetX: 0, offsetY: 0, scale: 1, rotation: 0 },
-        background: { offsetX: 0, offsetY: 0, scale: 1, rotation: 0 }
-      },
-      animationSettings: {
-        audioReactivity: 0.5,
-        reactiveElements: { head: true, face: false, body: false, arms: false, legs: false },
-        movement: { frequency: 2, amplitude: 5, phase: 0 },
-        transitionDuration: 400,
-        easing: 'ease-out'
-      }
-    };
-
-    const created = emotionManager.addEmotion(newEmotion);
-    setEmotions(emotionManager.getAllEmotions());
-    setSelectedEmotion(created);
+  const handleAssetSelect = (assetId: string) => {
+    setSelectedAsset(assetId);
+    setSelectedEmotion(null);
   };
 
-  const handleUpdateEmotion = (updates: Partial<CustomEmotion>) => {
-    if (!selectedEmotion) return;
-
-    const updated = emotionManager.updateEmotion(selectedEmotion.id, updates);
-    if (updated) {
-      setEmotions(emotionManager.getAllEmotions());
-      setSelectedEmotion(updated);
-    }
+  const handleSetSelect = (setId: string) => {
+    setSelectedSet(setId);
   };
 
-  const handleDeleteEmotion = (id: string) => {
-    if (window.confirm('Êtes-vous sûr de vouloir supprimer cette émotion ?')) {
-      emotionManager.deleteEmotion(id);
-      setEmotions(emotionManager.getAllEmotions());
-      setSelectedEmotion(emotions.find(e => e.id !== id) || null);
-    }
-  };
+  const handleCreateEmotion = async () => {
+    const name = prompt('Enter emotion name:');
+    if (!name) return;
 
-  const handleDuplicateEmotion = (id: string) => {
-    const emotion = emotions.find(e => e.id === id);
-    if (emotion) {
-      const newName = prompt('Nom de la copie:', `${emotion.displayName} (copie)`);
-      if (newName) {
-        const duplicated = emotionManager.duplicateEmotion(id, newName);
-        if (duplicated) {
-          setEmotions(emotionManager.getAllEmotions());
-          setSelectedEmotion(duplicated);
+    try {
+      emotionManager.addEmotion({
+        id: name.toLowerCase().replace(/[^a-z0-9]/g, '_'),
+        name: name.toLowerCase().replace(/[^a-z0-9]/g, '_'),
+        displayName: name,
+        color: '#6B7280',
+        description: '',
+        assets: {},
+        animationSettings: {
+          audioReactivity: 0.5,
+          reactiveElements: { head: true, face: false, body: false, arms: false, legs: false },
+          movement: { frequency: 2, amplitude: 5, phase: 0 },
+          transitionDuration: 500,
+          easing: 'ease-out'
         }
-      }
+      });
+      loadData();
+    } catch (error) {
+      console.error('Error creating emotion:', error);
     }
   };
 
-  // Gestion des assets
-  const handleUploadAsset = async (files: FileList | null, category: AssetFile['category']) => {
-    if (!files || files.length === 0) return;
+  const handleDeleteEmotion = async (emotionId: string) => {
+    if (!confirm('Are you sure you want to delete this emotion?')) return;
 
-    setShowAssetUpload(true);
+    try {
+      emotionManager.deleteEmotion(emotionId);
+      if (selectedEmotion === emotionId) {
+        setSelectedEmotion(null);
+      }
+      loadData();
+    } catch (error) {
+      console.error('Error deleting emotion:', error);
+    }
+  };
+
+  const handleEmotionChange = async (emotionId: string, field: string, value: any) => {
+    try {
+      const emotion = emotions.find(e => e.id === emotionId);
+      if (!emotion) return;
+
+      const updatedEmotion = { ...emotion, [field]: value };
+      emotionManager.updateEmotion(emotionId, updatedEmotion);
+      loadData();
+    } catch (error) {
+      console.error('Error updating emotion:', error);
+    }
+  };
+
+  const handleAssetUpload = async (files: FileList) => {
+    setUploadError(null);
     setUploadProgress(0);
 
     try {
       for (const file of Array.from(files)) {
-        await assetManager.uploadFile(file, category, (progress) => {
+        await assetManager.uploadFile(file, 'accessory', (progress: number) => {
           setUploadProgress(progress);
         });
       }
-      
-      const newAssets = assetManager.getAllAssets();
-      setAssets(newAssets);
-      setShowAssetUpload(false);
+      setUploadProgress(null);
+      loadData();
     } catch (error) {
-      alert(`Erreur lors de l'upload: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
-      setShowAssetUpload(false);
+      console.error('Error uploading asset:', error);
+      setUploadError(error instanceof Error ? error.message : 'Upload failed');
+      setUploadProgress(null);
     }
   };
 
-  const handleDeleteAsset = (id: string) => {
-    if (window.confirm('Supprimer cet asset ?')) {
-      assetManager.deleteAsset(id);
-      setAssets(assetManager.getAllAssets());
-    }
-  };
+  const handleDeleteAsset = async (assetId: string) => {
+    if (!confirm('Are you sure you want to delete this asset?')) return;
 
-  const handleAssignAssetToEmotion = (assetId: string, category: keyof CustomEmotion['assets']) => {
-    if (!selectedEmotion) return;
-
-    const asset = assets.find(a => a.id === assetId);
-    if (asset) {
-      const updatedAssets = {
-        ...selectedEmotion.assets,
-        [category]: asset.data
-      };
-      
-      handleUpdateEmotion({ assets: updatedAssets });
-    }
-  };
-
-  // Gestion de l'audio
-  const handleAudioUpload = async (file: File) => {
-    setAudioFile(file);
-    setIsAnalyzing(true);
-    
     try {
-      await audioAnalyzer.loadAudioFile(file);
-      const analysis = await audioAnalyzer.analyzeFullAudio();
-      setAudioAnalysis(analysis);
+      assetManager.deleteAsset(assetId);
+      if (selectedAsset === assetId) {
+        setSelectedAsset(null);
+      }
+      loadData();
     } catch (error) {
-      alert(`Erreur analyse audio: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
-    } finally {
-      setIsAnalyzing(false);
+      console.error('Error deleting asset:', error);
     }
   };
 
-  const handleSave = () => {
-    onSave(emotions);
+  const handleAssetTransformChange = async (assetId: string, transform: Partial<AssetTransform>) => {
+    try {
+      assetManager.updateAssetTransform(assetId, transform);
+      loadData();
+    } catch (error) {
+      console.error('Error updating asset transform:', error);
+    }
   };
 
-  // Filtrer les assets par catégorie
-  const assetsByCategory = assets.filter(asset => asset.category === selectedAssetCategory);
+  const handleAssignAssetToEmotion = async (emotionId: string, assetId: string) => {
+    try {
+      const emotion = emotions.find(e => e.id === emotionId);
+      if (!emotion) return;
 
-  return (
-    <div className="min-h-screen bg-gray-900 text-white">
-      {/* Header */}
-      <div className="bg-gray-800 border-b border-gray-700">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-white">🎭 Éditeur de Personnages</h1>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={handleSave}
-                className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg transition-colors"
-              >
-                💾 Sauvegarder
-              </button>
-              <button
-                onClick={onBackToMain}
-                className="bg-gray-600 hover:bg-gray-500 text-white px-4 py-2 rounded-lg transition-colors"
-              >
-                ← Retour
-              </button>
-            </div>
-          </div>
-        </div>
+      // Since assets are now stored in emotion.assets object by category, we'll add to accessories
+      const updatedAssets = { ...emotion.assets };
+      if (!updatedAssets.accessories) {
+        updatedAssets.accessories = [];
+      }
+      if (!updatedAssets.accessories.includes(assetId)) {
+        updatedAssets.accessories.push(assetId);
+        emotionManager.updateEmotion(emotionId, { ...emotion, assets: updatedAssets });
+        loadData();
+      }
+    } catch (error) {
+      console.error('Error assigning asset to emotion:', error);
+    }
+  };
+
+  const handleRemoveAssetFromEmotion = async (emotionId: string, assetId: string) => {
+    try {
+      const emotion = emotions.find(e => e.id === emotionId);
+      if (!emotion) return;
+
+      const updatedAssets = { ...emotion.assets };
+      if (updatedAssets.accessories) {
+        updatedAssets.accessories = updatedAssets.accessories.filter((id: string) => id !== assetId);
+      }
+      emotionManager.updateEmotion(emotionId, { ...emotion, assets: updatedAssets });
+      loadData();
+    } catch (error) {
+      console.error('Error removing asset from emotion:', error);
+    }
+  };
+
+  const handlePlay = () => {
+    setIsPlaying(true);
+  };
+
+  const handlePause = () => {
+    setIsPlaying(false);
+  };
+
+  const handleAudioUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && file.type.startsWith('audio/')) {
+      setAudioFile(file);
+      setIsPlaying(false);
+    }
+  };
+
+  const selectedEmotionData = emotions.find(e => e.id === selectedEmotion);
+  const selectedAssetData = assets.find(a => a.id === selectedAsset);
+
+  const renderEmotionsTab = () => (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h3 className="text-lg font-semibold">Emotions</h3>
+        <button
+          onClick={handleCreateEmotion}
+          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+        >
+          Add Emotion
+        </button>
       </div>
 
-      <div className="max-w-7xl mx-auto p-6">
-        <div className="grid grid-cols-12 gap-6 h-screen">
-          {/* Sidebar - Navigation des tabs */}
-          <div className="col-span-2">
-            <div className="bg-gray-800 rounded-lg p-4 h-full">
-              <nav className="space-y-2">
-                <button
-                  onClick={() => setActiveTab('emotions')}
-                  className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center gap-2 ${
-                    activeTab === 'emotions' ? 'bg-blue-600 text-white' : 'hover:bg-gray-700 text-gray-300'
-                  }`}
-                >
-                  🎭 Émotions
-                </button>
-                <button
-                  onClick={() => setActiveTab('assets')}
-                  className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center gap-2 ${
-                    activeTab === 'assets' ? 'bg-blue-600 text-white' : 'hover:bg-gray-700 text-gray-300'
-                  }`}
-                >
-                  🖼️ Assets
-                </button>
-              </nav>
+      <div className="grid gap-2">
+        {emotions.map(emotion => (
+          <div
+            key={emotion.id}
+            className={`p-3 border rounded cursor-pointer ${
+              selectedEmotion === emotion.id ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+            }`}
+            onClick={() => handleEmotionSelect(emotion.id)}
+          >
+            <div className="flex justify-between items-center">
+              <span className="font-medium">{emotion.name}</span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteEmotion(emotion.id);
+                }}
+                className="text-red-600 hover:text-red-800"
+              >
+                Delete
+              </button>
+            </div>
+            <div className="text-sm text-gray-600">
+              Intensity: {emotion.intensity || 'N/A'}, Pose: {emotion.pose || 'N/A'}
+            </div>
+            <div className="text-sm text-gray-600">
+              Assets: {Object.values(emotion.assets || {}).flat().length || 0}
             </div>
           </div>
+        ))}
+      </div>
 
-          {/* Contenu principal */}
-          <div className="col-span-7">
-            {activeTab === 'emotions' && (
-              <div className="bg-gray-800 rounded-lg p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-bold">🎭 Gestion des Émotions</h2>
-                  <button
-                    onClick={handleAddEmotion}
-                    className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg transition-colors"
-                  >
-                    ➕ Nouvelle Émotion
-                  </button>
-                </div>
+      {selectedEmotionData && (
+        <div className="border-t pt-4">
+          <h4 className="font-semibold mb-3">Edit Emotion: {selectedEmotionData.name}</h4>
+          
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium mb-1">Display Name</label>
+              <input
+                type="text"
+                value={selectedEmotionData.displayName || selectedEmotionData.name}
+                onChange={(e) => handleEmotionChange(selectedEmotion!, 'displayName', e.target.value)}
+                className="w-full px-3 py-2 border rounded"
+              />
+            </div>
 
-                {/* Liste des émotions */}
-                <div className="space-y-4 mb-8">
-                  {emotions.map((emotion) => (
-                    <div
-                      key={emotion.id}
-                      className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                        selectedEmotion?.id === emotion.id 
-                          ? 'border-blue-500 bg-blue-900/30' 
-                          : 'border-gray-600 hover:border-gray-500'
-                      }`}
-                      onClick={() => setSelectedEmotion(emotion)}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div 
-                            className="w-4 h-4 rounded-full"
-                            style={{ backgroundColor: emotion.color }}
-                          ></div>
-                          <h3 className="font-bold">{emotion.displayName}</h3>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDuplicateEmotion(emotion.id);
-                            }}
-                            className="text-blue-400 hover:text-blue-300 p-1 rounded"
-                            title="Dupliquer"
-                          >
-                            📋
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteEmotion(emotion.id);
-                            }}
-                            className="text-red-400 hover:text-red-300 p-1 rounded"
-                            title="Supprimer"
-                          >
-                            🗑️
-                          </button>
-                        </div>
-                      </div>
-                      <p className="text-gray-400 text-sm mt-2">{emotion.description}</p>
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {Object.keys(emotion.assets).map(asset => (
-                          <span key={asset} className="bg-gray-600 text-xs px-2 py-1 rounded">
-                            {asset}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Description</label>
+              <textarea
+                value={selectedEmotionData.description || ''}
+                onChange={(e) => handleEmotionChange(selectedEmotion!, 'description', e.target.value)}
+                className="w-full px-3 py-2 border rounded"
+                rows={3}
+              />
+            </div>
 
-                {/* Éditeur d'émotion sélectionnée */}
-                {selectedEmotion && (
-                  <div className="bg-gray-700 p-6 rounded-lg">
-                    <h3 className="text-lg font-bold mb-4">✏️ Éditer : {selectedEmotion.displayName}</h3>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium mb-2">Nom d'affichage</label>
-                        <input
-                          type="text"
-                          value={selectedEmotion.displayName}
-                          onChange={(e) => handleUpdateEmotion({ displayName: e.target.value })}
-                          className="w-full bg-gray-600 border border-gray-500 rounded-lg px-3 py-2 text-white"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium mb-2">Couleur</label>
-                        <input
-                          type="color"
-                          value={selectedEmotion.color}
-                          onChange={(e) => handleUpdateEmotion({ color: e.target.value })}
-                          className="w-full bg-gray-600 border border-gray-500 rounded-lg px-3 py-2"
-                        />
-                      </div>
-                    </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Color</label>
+              <input
+                type="color"
+                value={selectedEmotionData.color || '#6B7280'}
+                onChange={(e) => handleEmotionChange(selectedEmotion!, 'color', e.target.value)}
+                className="w-full px-3 py-2 border rounded"
+              />
+            </div>
 
-                    <div className="mt-4">
-                      <label className="block text-sm font-medium mb-2">Description</label>
-                      <textarea
-                        value={selectedEmotion.description}
-                        onChange={(e) => handleUpdateEmotion({ description: e.target.value })}
-                        className="w-full bg-gray-600 border border-gray-500 rounded-lg px-3 py-2 text-white h-20 resize-none"
-                        placeholder="Décrivez cette émotion..."
-                      />
-                    </div>
-
-                    {/* Gestion des triggers */}
-                    <div className="mt-4">
-                      <label className="block text-sm font-medium mb-2">🎯 Déclencheurs (mots-clés)</label>
-                      <div className="bg-gray-600 border border-gray-500 rounded-lg p-3">
-                        <div className="flex flex-wrap gap-2 mb-3">
-                          {selectedEmotion.description.split(',').map((trigger, index) => (
-                            trigger.trim() && (
-                              <span key={index} className="bg-purple-600 text-white px-2 py-1 rounded text-sm flex items-center gap-1">
-                                {trigger.trim()}
-                                <button
-                                  onClick={() => {
-                                    const triggers = selectedEmotion.description.split(',').map(t => t.trim()).filter(t => t);
-                                    triggers.splice(index, 1);
-                                    handleUpdateEmotion({ description: triggers.join(', ') });
-                                  }}
-                                  className="text-purple-200 hover:text-white ml-1"
-                                >
-                                  ×
-                                </button>
-                              </span>
-                            )
-                          ))}
-                        </div>
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            placeholder="Ajouter un déclencheur..."
-                            className="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-sm"
-                            onKeyPress={(e) => {
-                              if (e.key === 'Enter') {
-                                const input = e.target as HTMLInputElement;
-                                const newTrigger = input.value.trim();
-                                if (newTrigger) {
-                                  const currentTriggers = selectedEmotion.description.split(',').map(t => t.trim()).filter(t => t);
-                                  if (!currentTriggers.includes(newTrigger)) {
-                                    currentTriggers.push(newTrigger);
-                                    handleUpdateEmotion({ description: currentTriggers.join(', ') });
-                                  }
-                                  input.value = '';
-                                }
-                              }
-                            }}
-                          />
-                          <button
-                            onClick={() => {
-                              const input = document.querySelector('input[placeholder="Ajouter un déclencheur..."]') as HTMLInputElement;
-                              const newTrigger = input?.value.trim();
-                              if (newTrigger) {
-                                const currentTriggers = selectedEmotion.description.split(',').map(t => t.trim()).filter(t => t);
-                                if (!currentTriggers.includes(newTrigger)) {
-                                  currentTriggers.push(newTrigger);
-                                  handleUpdateEmotion({ description: currentTriggers.join(', ') });
-                                }
-                                input.value = '';
-                              }
-                            }}
-                            className="bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded text-sm transition-colors"
-                          >
-                            Ajouter
-                          </button>
-                        </div>
-                        <p className="text-xs text-gray-400 mt-2">
-                          Ces mots-clés déterminent quand cette émotion sera déclenchée lors de l'analyse audio
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Paramètres d'animation */}
-                    <div className="mt-6">
-                      <h4 className="font-bold mb-3">⚙️ Paramètres d'Animation</h4>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium mb-2">
-                            Réactivité Audio ({selectedEmotion.animationSettings.audioReactivity})
-                          </label>
-                          <input
-                            type="range"
-                            min="0"
-                            max="1"
-                            step="0.1"
-                            value={selectedEmotion.animationSettings.audioReactivity}
-                            onChange={(e) => handleUpdateEmotion({
-                              animationSettings: {
-                                ...selectedEmotion.animationSettings,
-                                audioReactivity: parseFloat(e.target.value)
-                              }
-                            })}
-                            className="w-full"
-                          />
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium mb-2">
-                            Amplitude ({selectedEmotion.animationSettings.movement.amplitude}px)
-                          </label>
-                          <input
-                            type="range"
-                            min="1"
-                            max="20"
-                            value={selectedEmotion.animationSettings.movement.amplitude}
-                            onChange={(e) => handleUpdateEmotion({
-                              animationSettings: {
-                                ...selectedEmotion.animationSettings,
-                                movement: {
-                                  ...selectedEmotion.animationSettings.movement,
-                                  amplitude: parseFloat(e.target.value)
-                                }
-                              }
-                            })}
-                            className="w-full"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="mt-4">
-                        <label className="block text-sm font-medium mb-2">Éléments réactifs au son</label>
-                        <div className="flex flex-wrap gap-2">
-                          {Object.entries(selectedEmotion.animationSettings.reactiveElements).map(([element, active]) => (
-                            <button
-                              key={element}
-                              onClick={() => handleUpdateEmotion({
-                                animationSettings: {
-                                  ...selectedEmotion.animationSettings,
-                                  reactiveElements: {
-                                    ...selectedEmotion.animationSettings.reactiveElements,
-                                    [element]: !active
-                                  }
-                                }
-                              })}
-                              className={`px-3 py-1 rounded-lg text-sm transition-colors ${
-                                active ? 'bg-green-600 text-white' : 'bg-gray-600 text-gray-300'
-                              }`}
-                            >
-                              {element}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Sélecteur d'assets */}
-                    <div className="mt-6">
-                      <h4 className="font-bold mb-3">🖼️ Assets assignés</h4>
-                      <div className="grid grid-cols-4 gap-2">
-                        {['head', 'face', 'body', 'leftArm', 'rightArm', 'leftLeg', 'rightLeg', 'background'].map((category) => (
-                          <div
-                            key={category}
-                            className="bg-gray-600 border border-gray-500 rounded-lg p-3 text-center min-h-24 flex flex-col items-center justify-center relative group"
-                          >
-                            <div className="text-xs font-medium text-gray-300 mb-1">{category}</div>
-                            {selectedEmotion.assets[category as keyof CustomEmotion['assets']] ? (
-                              <div className="relative flex-1 flex items-center justify-center">
-                                <img
-                                  src={selectedEmotion.assets[category as keyof CustomEmotion['assets']] as string}
-                                  alt={category}
-                                  className="max-w-full max-h-12 object-contain"
-                                />
-                                <button
-                                  onClick={() => handleUpdateEmotion({
-                                    assets: {
-                                      ...selectedEmotion.assets,
-                                      [category]: undefined
-                                    }
-                                  })}
-                                  className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 text-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
-                                >
-                                  ×
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="flex-1 flex items-center justify-center">
-                                <button
-                                  onClick={() => {
-                                    setAssetPickerCategory(category as keyof CustomEmotion['assets']);
-                                    setShowAssetPicker(true);
-                                  }}
-                                  className="bg-blue-600 hover:bg-blue-500 text-white text-xs px-2 py-1 rounded transition-colors"
-                                >
-                                  Choisir
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Ajustements de position/taille pour chaque asset */}
-                    <div className="mt-6">
-                      <h4 className="text-lg font-bold mb-4">⚙️ Ajustements des Assets</h4>
-                      <div className="space-y-4">
-                        {Object.entries(selectedEmotion.assets).map(([category, assetData]) => {
-                          if (!assetData) return null;
-                          
-                          const transform = selectedEmotion.assetTransforms?.[category as keyof typeof selectedEmotion.assetTransforms] || {
-                            offsetX: 0,
-                            offsetY: 0,
-                            scale: 1,
-                            rotation: 0
-                          };
-
-                          return (
-                            <div key={category} className="bg-gray-700 p-4 rounded-lg">
-                              <div className="flex items-center gap-3 mb-3">
-                                <img 
-                                  src={assetData}
-                                  alt={category}
-                                  className="w-8 h-8 object-contain"
-                                />
-                                <h5 className="font-medium capitalize">{category}</h5>
-                              </div>
-                              
-                              <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                  <label className="block text-xs text-gray-400 mb-1">Position X</label>
-                                  <input
-                                    type="range"
-                                    min="-100"
-                                    max="100"
-                                    value={transform.offsetX}
-                                    onChange={(e) => {
-                                      const newTransforms = {
-                                        ...selectedEmotion.assetTransforms,
-                                        [category]: {
-                                          ...transform,
-                                          offsetX: parseInt(e.target.value)
-                                        }
-                                      };
-                                      handleUpdateEmotion({ assetTransforms: newTransforms });
-                                    }}
-                                    className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer"
-                                  />
-                                  <span className="text-xs text-gray-400">{transform.offsetX}px</span>
-                                </div>
-                                
-                                <div>
-                                  <label className="block text-xs text-gray-400 mb-1">Position Y</label>
-                                  <input
-                                    type="range"
-                                    min="-100"
-                                    max="100"
-                                    value={transform.offsetY}
-                                    onChange={(e) => {
-                                      const newTransforms = {
-                                        ...selectedEmotion.assetTransforms,
-                                        [category]: {
-                                          ...transform,
-                                          offsetY: parseInt(e.target.value)
-                                        }
-                                      };
-                                      handleUpdateEmotion({ assetTransforms: newTransforms });
-                                    }}
-                                    className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer"
-                                  />
-                                  <span className="text-xs text-gray-400">{transform.offsetY}px</span>
-                                </div>
-                                
-                                <div>
-                                  <label className="block text-xs text-gray-400 mb-1">Taille</label>
-                                  <input
-                                    type="range"
-                                    min="0.1"
-                                    max="3"
-                                    step="0.1"
-                                    value={transform.scale}
-                                    onChange={(e) => {
-                                      const newTransforms = {
-                                        ...selectedEmotion.assetTransforms,
-                                        [category]: {
-                                          ...transform,
-                                          scale: parseFloat(e.target.value)
-                                        }
-                                      };
-                                      handleUpdateEmotion({ assetTransforms: newTransforms });
-                                    }}
-                                    className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer"
-                                  />
-                                  <span className="text-xs text-gray-400">{transform.scale.toFixed(1)}x</span>
-                                </div>
-                                
-                                <div>
-                                  <label className="block text-xs text-gray-400 mb-1">Rotation</label>
-                                  <input
-                                    type="range"
-                                    min="-180"
-                                    max="180"
-                                    value={transform.rotation}
-                                    onChange={(e) => {
-                                      const newTransforms = {
-                                        ...selectedEmotion.assetTransforms,
-                                        [category]: {
-                                          ...transform,
-                                          rotation: parseInt(e.target.value)
-                                        }
-                                      };
-                                      handleUpdateEmotion({ assetTransforms: newTransforms });
-                                    }}
-                                    className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer"
-                                  />
-                                  <span className="text-xs text-gray-400">{transform.rotation}°</span>
-                                </div>
-                              </div>
-                              
-                              <div className="mt-2 flex gap-2">
-                                <button
-                                  onClick={() => {
-                                    const newTransforms = {
-                                      ...selectedEmotion.assetTransforms,
-                                      [category]: {
-                                        offsetX: 0,
-                                        offsetY: 0,
-                                        scale: 1,
-                                        rotation: 0
-                                      }
-                                    };
-                                    handleUpdateEmotion({ assetTransforms: newTransforms });
-                                  }}
-                                  className="bg-gray-600 hover:bg-gray-500 text-white text-xs px-2 py-1 rounded transition-colors"
-                                >
-                                  Réinitialiser
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                )}
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <label className="block text-sm font-medium">Assets</label>
+                <button
+                  onClick={() => setShowAssetPicker(true)}
+                  className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
+                >
+                  Add Asset
+                </button>
               </div>
-            )}
-
-            {activeTab === 'assets' && (
-              <div className="bg-gray-800 rounded-lg p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-bold">🖼️ Gestion des Assets</h2>
-                  <div className="flex items-center gap-3">
-                    <select
-                      value={selectedAssetCategory}
-                      onChange={(e) => setSelectedAssetCategory(e.target.value as AssetFile['category'])}
-                      className="bg-gray-600 border border-gray-500 rounded-lg px-3 py-2 text-white"
-                    >
-                      <option value="head">Tête</option>
-                      <option value="face">Visage</option>
-                      <option value="body">Corps</option>
-                      <option value="leftArm">Bras Gauche</option>
-                      <option value="rightArm">Bras Droit</option>
-                      <option value="leftLeg">Jambe Gauche</option>
-                      <option value="rightLeg">Jambe Droite</option>
-                      <option value="background">Arrière-plan</option>
-                      <option value="accessory">Accessoire</option>
-                      <option value="effect">Effet</option>
-                    </select>
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg transition-colors"
-                    >
-                      ➕ Upload Asset
-                    </button>
-                  </div>
-                </div>
-
-                {/* Upload d'assets */}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  className="hidden"
-                  onChange={(e) => handleUploadAsset(e.target.files, selectedAssetCategory)}
-                />
-
-                {/* Grille des assets */}
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                  {assetsByCategory.map((asset) => (
-                    <div
-                      key={asset.id}
-                      className="bg-gray-700 rounded-lg p-3 hover:bg-gray-600 transition-colors group"
-                    >
-                      <div className="relative">
-                        <img
-                          src={asset.data}
-                          alt={asset.name}
-                          className="w-full h-20 object-contain rounded"
-                        />
-                        <button
-                          onClick={() => handleDeleteAsset(asset.id)}
-                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          ×
-                        </button>
-                      </div>
-                      <p className="text-xs text-gray-300 mt-2 truncate">{asset.name}</p>
-                      <p className="text-xs text-gray-500">{asset.category}</p>
-                    </div>
-                  ))}
-                </div>
-
-                {assetsByCategory.length === 0 && (
-                  <div className="text-center py-12 text-gray-500">
-                    <p>Aucun asset dans la catégorie "{selectedAssetCategory}"</p>
-                    <p className="text-sm mt-2">Cliquez sur "Upload Asset" pour ajouter des images</p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Preview - Panel de droite */}
-          <div className="col-span-3">
-            <div className="bg-gray-800 rounded-lg p-6 h-full">
-              <h3 className="text-lg font-bold mb-4">🎬 Preview</h3>
               
-              {selectedEmotion ? (
-                <div className="space-y-4">
-                  <AssetBasedRenderer
-                    emotion={selectedEmotion}
-                    audioData={audioAnalysis[0]}
-                    width={300}
-                    height={200}
-                    className="border border-gray-600 rounded-lg"
-                    showDebugInfo={false}
-                  />
-                  
-                  <div className="text-sm space-y-2">
-                    <div className="flex items-center gap-2">
-                      <div 
-                        className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: selectedEmotion.color }}
-                      ></div>
-                      <span className="font-bold">{selectedEmotion.displayName}</span>
+              <div className="space-y-2">
+                {(selectedEmotionData.assets?.accessories || []).map((assetId: string) => {
+                  const asset = assets.find(a => a.id === assetId);
+                  return asset ? (
+                    <div key={assetId} className="flex justify-between items-center p-2 bg-gray-50 rounded">
+                      <span className="text-sm">{asset.name}</span>
+                      <button
+                        onClick={() => handleRemoveAssetFromEmotion(selectedEmotion!, assetId)}
+                        className="text-red-600 hover:text-red-800 text-sm"
+                      >
+                        Remove
+                      </button>
                     </div>
-                    <p className="text-gray-400 text-xs">{selectedEmotion.description}</p>
-                    <div className="flex flex-wrap gap-1">
-                      {Object.keys(selectedEmotion.assets).map(asset => (
-                        <span key={asset} className="bg-gray-600 text-xs px-2 py-1 rounded">
-                          {asset}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Test audio */}
-                  <div className="mt-6">
-                    <h4 className="font-bold mb-2">🎵 Test avec Audio</h4>
-                    <input
-                      ref={audioInputRef}
-                      type="file"
-                      accept="audio/*"
-                      className="hidden"
-                      onChange={(e) => e.target.files && handleAudioUpload(e.target.files[0])}
-                    />
-                    <button
-                      onClick={() => audioInputRef.current?.click()}
-                      disabled={isAnalyzing}
-                      className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 text-white px-3 py-2 rounded-lg text-sm transition-colors"
-                    >
-                      {isAnalyzing ? 'Analyse...' : audioFile ? `🎵 ${audioFile.name}` : 'Charger Audio'}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center text-gray-500 py-8">
-                  <p>Sélectionnez une émotion pour la prévisualiser</p>
-                </div>
-              )}
+                  ) : null;
+                })}
+              </div>
             </div>
           </div>
         </div>
+      )}
+    </div>
+  );
+
+  const renderSetsTab = () => (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h3 className="text-lg font-semibold">Emotion Sets</h3>
+        <button
+          onClick={() => {
+            const name = prompt('Enter set name:');
+            if (name) {
+              const newSet: EmotionSet = {
+                id: Date.now().toString(),
+                name,
+                emotions: []
+              };
+              setEmotionSets([...emotionSets, newSet]);
+            }
+          }}
+          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+        >
+          Create Set
+        </button>
       </div>
 
-      {/* Modal de sélection d'assets */}
-      {showAssetPicker && selectedEmotion && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 p-6 rounded-lg max-w-4xl w-full mx-4 max-h-[80vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-white">
-                Choisir un asset pour : {assetPickerCategory}
-              </h3>
+      <div className="grid gap-2">
+        {emotionSets.map(set => (
+          <div
+            key={set.id}
+            className={`p-3 border rounded cursor-pointer ${
+              selectedSet === set.id ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+            }`}
+            onClick={() => handleSetSelect(set.id)}
+          >
+            <div className="flex justify-between items-center">
+              <span className="font-medium">{set.name}</span>
               <button
-                onClick={() => setShowAssetPicker(false)}
-                className="text-gray-400 hover:text-white text-xl font-bold"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEmotionSets(emotionSets.filter(s => s.id !== set.id));
+                  if (selectedSet === set.id) setSelectedSet(null);
+                }}
+                className="text-red-600 hover:text-red-800"
               >
-                ×
+                Delete
               </button>
             </div>
-            
-            {/* Filtre par catégorie */}
-            <div className="mb-4">
-              <select
-                value={selectedAssetCategory}
-                onChange={(e) => setSelectedAssetCategory(e.target.value as AssetFile['category'])}
-                className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white"
-              >
-                <option value="head">Tête</option>
-                <option value="face">Visage</option>
-                <option value="body">Corps</option>
-                <option value="leftArm">Bras Gauche</option>
-                <option value="rightArm">Bras Droit</option>
-                <option value="leftLeg">Jambe Gauche</option>
-                <option value="rightLeg">Jambe Droite</option>
-                <option value="background">Arrière-plan</option>
-                <option value="accessory">Accessoire</option>
-                <option value="effect">Effet</option>
-              </select>
+            <div className="text-sm text-gray-600">
+              Emotions: {set.emotions.length}
             </div>
+          </div>
+        ))}
+      </div>
 
-            {/* Grille d'assets */}
-            <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-4">
-              {assetsByCategory.map((asset) => (
-                <div
-                  key={asset.id}
-                  className="bg-gray-700 rounded-lg p-3 cursor-pointer hover:bg-gray-600 transition-colors border-2 border-transparent hover:border-blue-500"
-                  onClick={() => {
-                    handleAssignAssetToEmotion(asset.id, assetPickerCategory);
-                    setShowAssetPicker(false);
-                  }}
-                >
-                  <img
-                    src={asset.data}
-                    alt={asset.name}
-                    className="w-full h-16 object-contain rounded mb-2"
-                  />
-                  <p className="text-xs text-gray-300 text-center truncate">{asset.name}</p>
-                </div>
-              ))}
-            </div>
+      {selectedSet && (
+        <div className="border-t pt-4">
+          <h4 className="font-semibold mb-3">Edit Set</h4>
+          <p className="text-gray-600">Set management functionality coming soon...</p>
+        </div>
+      )}
+    </div>
+  );
 
-            {assetsByCategory.length === 0 && (
-              <div className="text-center py-8 text-gray-500">
-                <p>Aucun asset dans la catégorie "{selectedAssetCategory}"</p>
-                <button
-                  onClick={() => {
-                    setShowAssetPicker(false);
-                    setActiveTab('assets');
-                  }}
-                  className="mt-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg transition-colors"
-                >
-                  Aller aux assets
-                </button>
-              </div>
-            )}
+  const renderAssetsTab = () => (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h3 className="text-lg font-semibold">Assets</h3>
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+        >
+          Upload Asset
+        </button>
+      </div>
 
-            <div className="flex justify-end gap-3">
+      {uploadProgress !== null && (
+        <div className="w-full bg-gray-200 rounded-full h-2">
+          <div
+            className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+            style={{ width: `${uploadProgress}%` }}
+          />
+        </div>
+      )}
+
+      {uploadError && (
+        <div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+          {uploadError}
+        </div>
+      )}
+
+      <div className="grid gap-2">
+        {assets.map(asset => (
+          <div
+            key={asset.id}
+            className={`p-3 border rounded cursor-pointer ${
+              selectedAsset === asset.id ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+            }`}
+            onClick={() => handleAssetSelect(asset.id)}
+          >
+            <div className="flex justify-between items-center">
+              <span className="font-medium">{asset.name}</span>
               <button
-                onClick={() => setShowAssetPicker(false)}
-                className="bg-gray-600 hover:bg-gray-500 text-white px-4 py-2 rounded-lg transition-colors"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteAsset(asset.id);
+                }}
+                className="text-red-600 hover:text-red-800"
               >
-                Annuler
+                Delete
               </button>
+            </div>
+            <div className="text-sm text-gray-600">
+              Type: {asset.type}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {selectedAssetData && (
+        <div className="border-t pt-4">
+          <h4 className="font-semibold mb-3">Edit Asset: {selectedAssetData.name}</h4>
+          
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium mb-1">Offset X</label>
+              <input
+                type="range"
+                min="-200"
+                max="200"
+                value={selectedAssetData.transform?.offsetX || 0}
+                onChange={(e) => handleAssetTransformChange(selectedAsset!, { offsetX: parseInt(e.target.value) })}
+                className="w-full"
+              />
+              <span className="text-sm text-gray-600">{selectedAssetData.transform?.offsetX || 0}px</span>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">Offset Y</label>
+              <input
+                type="range"
+                min="-200"
+                max="200"
+                value={selectedAssetData.transform?.offsetY || 0}
+                onChange={(e) => handleAssetTransformChange(selectedAsset!, { offsetY: parseInt(e.target.value) })}
+                className="w-full"
+              />
+              <span className="text-sm text-gray-600">{selectedAssetData.transform?.offsetY || 0}px</span>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">Scale</label>
+              <input
+                type="range"
+                min="0.1"
+                max="2"
+                step="0.1"
+                value={selectedAssetData.transform?.scale || 1}
+                onChange={(e) => handleAssetTransformChange(selectedAsset!, { scale: parseFloat(e.target.value) })}
+                className="w-full"
+              />
+              <span className="text-sm text-gray-600">{selectedAssetData.transform?.scale || 1}x</span>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">Rotation</label>
+              <input
+                type="range"
+                min="-180"
+                max="180"
+                value={selectedAssetData.transform?.rotation || 0}
+                onChange={(e) => handleAssetTransformChange(selectedAsset!, { rotation: parseInt(e.target.value) })}
+                className="w-full"
+              />
+              <span className="text-sm text-gray-600">{selectedAssetData.transform?.rotation || 0}°</span>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal d'upload */}
-      {showAssetUpload && (
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        accept="image/*"
+        onChange={(e) => e.target.files && handleAssetUpload(e.target.files)}
+        className="hidden"
+      />
+    </div>
+  );
+
+  return (
+    <div className="h-screen flex bg-gray-100">
+      {/* Left Panel - Editor */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Tab Navigation */}
+        <div className="bg-white border-b">
+          <div className="flex items-center">
+            {onBackToMain && (
+              <button
+                onClick={onBackToMain}
+                className="px-4 py-3 text-gray-600 hover:text-gray-800 border-r"
+              >
+                ← Back
+              </button>
+            )}
+            <button
+              onClick={() => setActiveTab('emotions')}
+              className={`px-6 py-3 font-medium ${
+                activeTab === 'emotions'
+                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  : 'text-gray-600 hover:text-gray-800'
+              }`}
+            >
+              Emotions
+            </button>
+            <button
+              onClick={() => setActiveTab('sets')}
+              className={`px-6 py-3 font-medium ${
+                activeTab === 'sets'
+                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  : 'text-gray-600 hover:text-gray-800'
+              }`}
+            >
+              Sets
+            </button>
+            <button
+              onClick={() => setActiveTab('assets')}
+              className={`px-6 py-3 font-medium ${
+                activeTab === 'assets'
+                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  : 'text-gray-600 hover:text-gray-800'
+              }`}
+            >
+              Assets
+            </button>
+            {onSave && (
+              <div className="ml-auto pr-4 py-3">
+                <button
+                  onClick={() => onSave(emotions)}
+                  className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                >
+                  Save & Close
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Tab Content */}
+        <div className="flex-1 overflow-auto p-6">
+          {activeTab === 'emotions' && renderEmotionsTab()}
+          {activeTab === 'sets' && renderSetsTab()}
+          {activeTab === 'assets' && renderAssetsTab()}
+        </div>
+
+        {/* Audio Controls */}
+        <div className="bg-white border-t p-4">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => audioInputRef.current?.click()}
+              className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
+            >
+              Upload Audio
+            </button>
+            
+            {audioFile && (
+              <>
+                <span className="text-sm text-gray-600">{audioFile.name}</span>
+                <button
+                  onClick={isPlaying ? handlePause : handlePlay}
+                  className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                >
+                  {isPlaying ? 'Pause' : 'Play'}
+                </button>
+              </>
+            )}
+          </div>
+          
+          <input
+            ref={audioInputRef}
+            type="file"
+            accept="audio/*"
+            onChange={handleAudioUpload}
+            className="hidden"
+          />
+        </div>
+      </div>
+
+      {/* Right Panel - Sticky Preview */}
+      <div className="w-96 bg-white border-l flex flex-col">
+        <div className="p-4 border-b">
+          <h3 className="text-lg font-semibold">Preview</h3>
+        </div>
+        
+        <div className="flex-1 p-4">
+          <div className="aspect-square bg-gray-50 rounded-lg mb-4">
+            <StickmanViewer
+              pose={{
+                head: { expression: 'neutral', rotation: 0 },
+                body: { lean: 0 },
+                leftArm: { rotation: 45, bend: 30 },
+                rightArm: { rotation: -45, bend: 30 },
+                leftLeg: { rotation: 0, bend: 15 },
+                rightLeg: { rotation: 0, bend: 15 }
+              }}
+              size={300}
+            />
+          </div>
+          
+          <VideoExporter
+            segments={[]}
+            audioFile={audioFile}
+          />
+        </div>
+      </div>
+
+      {/* Asset Picker Modal */}
+      {showAssetPicker && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 p-6 rounded-lg">
-            <h3 className="text-lg font-bold mb-4">📤 Upload en cours...</h3>
-            <div className="w-64 bg-gray-700 rounded-full h-4">
-              <div 
-                className="bg-blue-600 h-4 rounded-full transition-all duration-300"
-                style={{ width: `${uploadProgress}%` }}
-              ></div>
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4">Select Asset</h3>
+            
+            <div className="max-h-64 overflow-auto space-y-2">
+              {assets.map(asset => (
+                <button
+                  key={asset.id}
+                  onClick={() => {
+                    if (selectedEmotion) {
+                      handleAssignAssetToEmotion(selectedEmotion, asset.id);
+                    }
+                    setShowAssetPicker(false);
+                  }}
+                  className="w-full text-left p-3 border rounded hover:bg-gray-50"
+                >
+                  <div className="font-medium">{asset.name}</div>
+                  <div className="text-sm text-gray-600">Type: {asset.type}</div>
+                </button>
+              ))}
             </div>
-            <p className="text-sm text-gray-400 mt-2">{Math.round(uploadProgress)}%</p>
+            
+            <div className="flex justify-end gap-2 mt-4">
+              <button
+                onClick={() => setShowAssetPicker(false)}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}

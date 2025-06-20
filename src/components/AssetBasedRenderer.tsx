@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { type CustomEmotion } from '../utils/emotionManager';
+import { AssetManager, type AssetFile } from '../utils/assetManager';
 import { type AudioAnalysisData } from '../utils/audioAnalyzer';
 
 interface AssetBasedRendererProps {
@@ -24,6 +25,7 @@ interface LoadedAsset {
   image: HTMLImageElement;
   loaded: boolean;
   error: boolean;
+  assetFile?: AssetFile;
 }
 
 const AssetBasedRenderer: React.FC<AssetBasedRendererProps> = ({
@@ -37,6 +39,7 @@ const AssetBasedRenderer: React.FC<AssetBasedRendererProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [loadedAssets, setLoadedAssets] = useState<Map<string, LoadedAsset>>(new Map());
   const animationFrameRef = useRef<number | undefined>(undefined);
+  const assetManager = useRef(new AssetManager()).current;
 
   // Positions par défaut des éléments
   const defaultPositions: Record<string, AssetPosition> = {
@@ -54,35 +57,56 @@ const AssetBasedRenderer: React.FC<AssetBasedRendererProps> = ({
   useEffect(() => {
     const loadAssets = async () => {
       const newLoadedAssets = new Map<string, LoadedAsset>();
+      
+      // Obtenir tous les assets disponibles
+      const allAssets = assetManager.getAllAssets();
 
-      for (const [category, assetData] of Object.entries(emotion.assets)) {
-        if (assetData) {
-          const asset: LoadedAsset = {
-            image: new Image(),
-            loaded: false,
-            error: false
-          };
-
-          asset.image.onload = () => {
-            asset.loaded = true;
-            setLoadedAssets(prev => new Map(prev.set(`${emotion.id}_${category}`, asset)));
-          };
-
-          asset.image.onerror = () => {
-            asset.error = true;
-            setLoadedAssets(prev => new Map(prev.set(`${emotion.id}_${category}`, asset)));
-          };
-
-          asset.image.src = assetData;
-          newLoadedAssets.set(`${emotion.id}_${category}`, asset);
+      // Parcourir les assets de l'émotion (organisés par catégorie)
+      for (const [category, assetIds] of Object.entries(emotion.assets)) {
+        if (Array.isArray(assetIds)) {
+          // Pour les catégories avec plusieurs assets (accessories, effects)
+          assetIds.forEach((assetId: string) => {
+            const assetFile = allAssets.find(a => a.id === assetId);
+            if (assetFile) {
+              loadAsset(assetFile, category, newLoadedAssets);
+            }
+          });
+        } else if (typeof assetIds === 'string') {
+          // Pour les catégories avec un seul asset (head, body, etc.)
+          const assetFile = allAssets.find(a => a.id === assetIds);
+          if (assetFile) {
+            loadAsset(assetFile, category, newLoadedAssets);
+          }
         }
       }
 
       setLoadedAssets(newLoadedAssets);
     };
 
+    const loadAsset = (assetFile: AssetFile, category: string, loadedAssetsMap: Map<string, LoadedAsset>) => {
+      const asset: LoadedAsset = {
+        image: new Image(),
+        loaded: false,
+        error: false,
+        assetFile
+      };
+
+      asset.image.onload = () => {
+        asset.loaded = true;
+        setLoadedAssets(prev => new Map(prev.set(`${emotion.id}_${category}_${assetFile.id}`, asset)));
+      };
+
+      asset.image.onerror = () => {
+        asset.error = true;
+        setLoadedAssets(prev => new Map(prev.set(`${emotion.id}_${category}_${assetFile.id}`, asset)));
+      };
+
+      asset.image.src = assetFile.data;
+      loadedAssetsMap.set(`${emotion.id}_${category}_${assetFile.id}`, asset);
+    };
+
     loadAssets();
-  }, [emotion]);
+  }, [emotion, assetManager]);
 
   // Calcul de l'animation basée sur l'audio
   const calculateAudioAnimation = (time: number, category: string): { offsetX: number; offsetY: number; rotation: number; scale: number } => {
@@ -155,40 +179,44 @@ const AssetBasedRenderer: React.FC<AssetBasedRendererProps> = ({
     const renderOrder = ['background', 'body', 'leftLeg', 'rightLeg', 'leftArm', 'rightArm', 'head', 'face'];
 
     renderOrder.forEach(category => {
-      const assetKey = `${emotion.id}_${category}`;
-      const loadedAsset = loadedAssets.get(assetKey);
+      // Chercher tous les assets de cette catégorie
+      const categoryAssets = Array.from(loadedAssets.entries()).filter(([key]) => 
+        key.includes(`${emotion.id}_${category}_`)
+      );
       
-      if (loadedAsset?.loaded) {
-        const basePosition = defaultPositions[category] || defaultPositions.body;
-        const animation = calculateAudioAnimation(currentTime, category);
-        const customTransform = emotion.assetTransforms?.[category as keyof typeof emotion.assetTransforms];
-        
-        ctx.save();
-        
-        // Appliquer les transformations (base + custom + animation)
-        const finalX = basePosition.x + (customTransform?.offsetX || 0) + animation.offsetX;
-        const finalY = basePosition.y + (customTransform?.offsetY || 0) + animation.offsetY;
-        const finalRotation = basePosition.rotation + (customTransform?.rotation || 0) + animation.rotation;
-        const finalScale = basePosition.scale * (customTransform?.scale || 1) * animation.scale;
-        
-        ctx.translate(finalX, finalY);
-        ctx.rotate((finalRotation * Math.PI) / 180);
-        ctx.scale(finalScale, finalScale);
-        
-        // Dessiner l'asset centré
-        const img = loadedAsset.image;
-        if (category === 'background') {
-          // Pour le background, s'étirer pour remplir tout le canvas
-          ctx.drawImage(img, -width/2, -height/2, width, height);
-        } else {
-          ctx.drawImage(img, -img.width / 2, -img.height / 2);
+      categoryAssets.forEach(([, loadedAsset]) => {
+        if (loadedAsset?.loaded && loadedAsset.assetFile) {
+          const basePosition = defaultPositions[category] || defaultPositions.body;
+          const animation = calculateAudioAnimation(currentTime, category);
+          const customTransform = loadedAsset.assetFile.transform;
+          
+          ctx.save();
+          
+          // Appliquer les transformations (base + custom + animation)
+          const finalX = basePosition.x + (customTransform?.offsetX || 0) + animation.offsetX;
+          const finalY = basePosition.y + (customTransform?.offsetY || 0) + animation.offsetY;
+          const finalRotation = basePosition.rotation + (customTransform?.rotation || 0) + animation.rotation;
+          const finalScale = basePosition.scale * (customTransform?.scale || 1) * animation.scale;
+          
+          ctx.translate(finalX, finalY);
+          ctx.rotate((finalRotation * Math.PI) / 180);
+          ctx.scale(finalScale, finalScale);
+          
+          // Dessiner l'asset centré
+          const img = loadedAsset.image;
+          if (category === 'background') {
+            // Pour le background, s'étirer pour remplir tout le canvas
+            ctx.drawImage(img, -width/2, -height/2, width, height);
+          } else {
+            ctx.drawImage(img, -img.width / 2, -img.height / 2);
+          }
+          
+          ctx.restore();
+        } else if (category !== 'background' && categoryAssets.length === 0) {
+          // Fallback : dessiner une forme basique si aucun asset n'est chargé pour cette catégorie
+          drawFallbackShape(ctx, category, defaultPositions[category], calculateAudioAnimation(currentTime, category));
         }
-        
-        ctx.restore();
-      } else if (category !== 'background') {
-        // Fallback : dessiner une forme basique si l'asset n'est pas chargé
-        drawFallbackShape(ctx, category, defaultPositions[category], calculateAudioAnimation(currentTime, category));
-      }
+      });
     });
 
     // Informations de debug

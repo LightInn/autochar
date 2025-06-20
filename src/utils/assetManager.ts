@@ -1,4 +1,11 @@
 // Gestionnaire d'assets (images PNG/SVG)
+export interface AssetTransform {
+  offsetX: number;
+  offsetY: number;
+  scale: number;
+  rotation: number;
+}
+
 export interface AssetFile {
   id: string;
   name: string;
@@ -8,6 +15,7 @@ export interface AssetFile {
   size: number; // en bytes
   width?: number;
   height?: number;
+  transform: AssetTransform; // Transformations par asset
   uploaded: Date;
   modified: Date;
 }
@@ -34,6 +42,7 @@ export class AssetManager {
         assetsArray.forEach((asset: AssetFile) => {
           this.assets.set(asset.id, {
             ...asset,
+            transform: asset.transform || { offsetX: 0, offsetY: 0, scale: 1, rotation: 0 }, // Default transform si manquant
             uploaded: new Date(asset.uploaded),
             modified: new Date(asset.modified)
           });
@@ -114,6 +123,7 @@ export class AssetManager {
             size: file.size,
             width: dimensions.width,
             height: dimensions.height,
+            transform: { offsetX: 0, offsetY: 0, scale: 1, rotation: 0 },
             uploaded: new Date(),
             modified: new Date()
           };
@@ -367,6 +377,22 @@ export class AssetManager {
       img.onerror = () => reject(new Error('Erreur lors du chargement de l\'image'));
       img.src = URL.createObjectURL(file);
     });
+  }
+
+  // Mettre à jour les transformations d'un asset
+  updateAssetTransform(id: string, transform: Partial<AssetTransform>): AssetFile | null {
+    const asset = this.assets.get(id);
+    if (!asset) return null;
+
+    const updated = {
+      ...asset,
+      transform: { ...asset.transform, ...transform },
+      modified: new Date()
+    };
+
+    this.assets.set(id, updated);
+    this.saveAssets();
+    return updated;
   }
 }
 
