@@ -57,15 +57,27 @@ app.post('/transcribe', upload.single('audio'), (req, res) => {
         whisperOptions: {
           language: 'fr',
           word_timestamps: true,
+          outputInJson: true, // get output result in json file
         },
       });
 
-      // Send the final result
-      res.write(`event: result\ndata: ${JSON.stringify(transcript)}\n\n`);
+        if (!transcript) {
+        throw new Error('Transcription failed or produced no output.');
+        }
+
+    console.log(transcript);
+
+      console.log('Transcription completed successfully!');
+      console.log('Transcript length:', transcript.length, 'characters');
+
+      // Send the final result as text wrapped in an object
+      res.write(`event: result\ndata: ${JSON.stringify({ text: transcript })}\n\n`);
 
     } catch (error) {
       console.error('Error during transcription:', error);
-      res.write(`event: error\ndata: ${JSON.stringify({ message: 'Error during transcription' })}\n\n`);
+      console.error('Error details:', error.message);
+      console.error('Error stack:', error.stack);
+      res.write(`event: error\ndata: ${JSON.stringify({ message: error.message || 'Error during transcription' })}\n\n`);
     } finally {
       // End the connection
       res.write(`event: done\ndata: Transcription finished\n\n`);

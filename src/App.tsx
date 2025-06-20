@@ -9,12 +9,14 @@ function App() {
   const [transcript, setTranscript] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [transcriptionStatus, setTranscriptionStatus] = useState('');
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       setFile(e.target.files[0]);
       setTranscript(null);
       setError(null);
+      setTranscriptionStatus('');
     }
   };
 
@@ -26,6 +28,8 @@ function App() {
 
     setIsLoading(true);
     setError(null);
+    setTranscript(null);
+    setTranscriptionStatus('Uploading file...');
 
     try {
       const response = await fetch("http://localhost:3001/transcribe", {
@@ -34,13 +38,57 @@ function App() {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to transcribe audio.");
+        throw new Error(`Server error: ${response.statusText}`);
       }
 
-      const data = await response.json();
-      setTranscript(data.transcript);
+      // Handle SSE stream
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('Failed to get response reader.');
+      }
+
+      const decoder = new TextDecoder();
+      setTranscriptionStatus('Transcription in progress...');
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          break;
+        }
+
+        const chunk = decoder.decode(value);
+        const events = chunk.split('\n\n').filter(event => event.trim());
+
+        for (const event of events) {
+          const lines = event.split('\n');
+          const eventType = lines.find(line => line.startsWith('event:'))?.replace('event: ', '');
+          const dataLine = lines.find(line => line.startsWith('data:'))?.replace('data: ', '');
+
+          if (!eventType || !dataLine) continue;
+
+          try {
+            if (eventType === 'result') {
+              const result = JSON.parse(dataLine);
+              setTranscript(result);
+              setTranscriptionStatus('Transcription complete!');
+            } else if (eventType === 'error') {
+              const errorResult = JSON.parse(dataLine);
+              setError(errorResult.message || 'An unknown error occurred.');
+              setTranscriptionStatus('An error occurred.');
+            } else if (eventType === 'done') {
+              setIsLoading(false);
+              reader.cancel();
+              return;
+            }
+          } catch (parseError) {
+            console.error('Failed to parse SSE data:', parseError, 'Data:', dataLine);
+          }
+        }
+      }
+
     } catch (err: any) {
       setError(err.message);
+      setTranscriptionStatus('Failed to connect to the server.');
     } finally {
       setIsLoading(false);
     }
@@ -141,7 +189,7 @@ function App() {
                 onClick={handleUpload} 
                 disabled={isLoading}
                 className="mt-6 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition duration-300 disabled:bg-gray-500">
-                {isLoading ? 'Transcription en cours...' : 'Transcrire l\'audio'}
+                {isLoading ? (transcriptionStatus || 'Transcription en cours...') : 'Transcrire l\'audio'}
               </button>
             )}
           </div>
