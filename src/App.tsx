@@ -2,11 +2,15 @@ import { useState } from "react";
 import reactLogo from "./assets/react.svg";
 import viteLogo from "/vite.svg";
 import "./App.css";
+import { analyzeIntention } from "./utils/intentionAnalyzer";
+import type { EmotionSegment } from "./utils/intentionAnalyzer";
+import IntentionAnalysis from "./components/IntentionAnalysis";
 
 function App() {
   const [count, setCount] = useState(0);
   const [file, setFile] = useState<File | null>(null);
   const [transcript, setTranscript] = useState<any>(null);
+  const [intentionAnalysis, setIntentionAnalysis] = useState<EmotionSegment[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [transcriptionStatus, setTranscriptionStatus] = useState('');
@@ -15,6 +19,7 @@ function App() {
     if (e.target.files) {
       setFile(e.target.files[0]);
       setTranscript(null);
+      setIntentionAnalysis([]);
       setError(null);
       setTranscriptionStatus('');
     }
@@ -29,6 +34,7 @@ function App() {
     setIsLoading(true);
     setError(null);
     setTranscript(null);
+    setIntentionAnalysis([]);
     setTranscriptionStatus('Uploading file...');
 
     try {
@@ -71,6 +77,14 @@ function App() {
               const result = JSON.parse(dataLine);
               setTranscript(result);
               setTranscriptionStatus('Transcription complete!');
+              
+              // Analyser l'intention si on a une transcription structurée
+              if (result.transcription && Array.isArray(result.transcription)) {
+                console.log('Analyzing intention for segments:', result.transcription);
+                const analysis = analyzeIntention(result.transcription);
+                console.log('Intention analysis result:', analysis);
+                setIntentionAnalysis(analysis);
+              }
             } else if (eventType === 'error') {
               const errorResult = JSON.parse(dataLine);
               setError(errorResult.message || 'An unknown error occurred.');
@@ -128,16 +142,23 @@ function App() {
               <p className="ml-2 text-lg font-semibold">Upload Audio</p>
             </div>
             <div className="flex-auto border-t-2 border-gray-700 mx-4"></div>
-            <div className="flex items-center text-gray-500">
-              <div className="rounded-full border-2 border-gray-500 w-8 h-8 flex items-center justify-center">
+            <div className={`flex items-center ${transcript ? 'text-blue-500' : 'text-gray-500'}`}>
+              <div className={`rounded-full ${transcript ? 'bg-blue-500 text-white' : 'border-2 border-gray-500'} w-8 h-8 flex items-center justify-center`}>
                 2
               </div>
               <p className="ml-2 text-lg">Transcription</p>
             </div>
             <div className="flex-auto border-t-2 border-gray-700 mx-4"></div>
+            <div className={`flex items-center ${intentionAnalysis.length > 0 ? 'text-blue-500' : 'text-gray-500'}`}>
+              <div className={`rounded-full ${intentionAnalysis.length > 0 ? 'bg-blue-500 text-white' : 'border-2 border-gray-500'} w-8 h-8 flex items-center justify-center`}>
+                3
+              </div>
+              <p className="ml-2 text-lg">Intention</p>
+            </div>
+            <div className="flex-auto border-t-2 border-gray-700 mx-4"></div>
             <div className="flex items-center text-gray-500">
               <div className="rounded-full border-2 border-gray-500 w-8 h-8 flex items-center justify-center">
-                3
+                4
               </div>
               <p className="ml-2 text-lg">Animation</p>
             </div>
@@ -230,6 +251,26 @@ function App() {
                   <p>Modèle: {transcript.model.type} | Langue: {transcript.result?.language || 'fr'}</p>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Analyse d'intention */}
+          {intentionAnalysis.length > 0 && (
+            <div className="mt-8">
+              <IntentionAnalysis 
+                segments={intentionAnalysis}
+                onSegmentClick={(segment) => {
+                  console.log('Segment clicked:', segment);
+                }}
+                onEmotionChange={(segmentIndex, newEmotion) => {
+                  const updatedAnalysis = [...intentionAnalysis];
+                  updatedAnalysis[segmentIndex] = {
+                    ...updatedAnalysis[segmentIndex],
+                    emotion: newEmotion
+                  };
+                  setIntentionAnalysis(updatedAnalysis);
+                }}
+              />
             </div>
           )}
         </div>
