@@ -61,17 +61,31 @@ app.post('/transcribe', upload.single('audio'), (req, res) => {
         },
       });
 
-        if (!transcript) {
+      if (!transcript) {
         throw new Error('Transcription failed or produced no output.');
-        }
-
-    console.log(transcript);
+      }
 
       console.log('Transcription completed successfully!');
-      console.log('Transcript length:', transcript.length, 'characters');
-
-      // Send the final result as text wrapped in an object
-      res.write(`event: result\ndata: ${JSON.stringify({ text: transcript })}\n\n`);
+      
+      // Look for the generated JSON file
+      const jsonFilePath = filePath + '.json';
+      
+      if (fs.existsSync(jsonFilePath)) {
+        console.log('Reading generated JSON file:', jsonFilePath);
+        const jsonContent = fs.readFileSync(jsonFilePath, 'utf8');
+        const transcriptionData = JSON.parse(jsonContent);
+        
+        // Send the structured JSON data
+        res.write(`event: result\ndata: ${JSON.stringify(transcriptionData)}\n\n`);
+        
+        // Clean up the JSON file
+        fs.unlinkSync(jsonFilePath);
+        console.log('JSON file cleaned up');
+      } else {
+        console.log('JSON file not found, sending text transcript');
+        // Fallback to text if JSON file not found
+        res.write(`event: result\ndata: ${JSON.stringify({ text: transcript })}\n\n`);
+      }
 
     } catch (error) {
       console.error('Error during transcription:', error);
