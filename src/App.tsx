@@ -1,13 +1,11 @@
 import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import viteLogo from "/vite.svg";
 import "./App.css";
 import { analyzeIntention } from "./utils/intentionAnalyzer";
 import type { EmotionSegment } from "./utils/intentionAnalyzer";
 import IntentionAnalysis from "./components/IntentionAnalysis";
+import StickmanPreview from "./components/StickmanPreview";
 
 function App() {
-  const [count, setCount] = useState(0);
   const [file, setFile] = useState<File | null>(null);
   const [transcript, setTranscript] = useState<any>(null);
   const [intentionAnalysis, setIntentionAnalysis] = useState<EmotionSegment[]>([]);
@@ -137,11 +135,18 @@ function App() {
               <p className="ml-2 text-lg">Intention</p>
             </div>
             <div className="flex-auto border-t-2 border-gray-700 mx-4"></div>
-            <div className="flex items-center text-gray-500">
-              <div className="rounded-full border-2 border-gray-500 w-8 h-8 flex items-center justify-center">
+            <div className={`flex items-center ${intentionAnalysis.length > 0 ? 'text-blue-500' : 'text-gray-500'}`}>
+              <div className={`rounded-full ${intentionAnalysis.length > 0 ? 'bg-blue-500 text-white' : 'border-2 border-gray-500'} w-8 h-8 flex items-center justify-center`}>
                 4
               </div>
-              <p className="ml-2 text-lg">Animation</p>
+              <p className="ml-2 text-lg">Preview</p>
+            </div>
+            <div className="flex-auto border-t-2 border-gray-700 mx-4"></div>
+            <div className="flex items-center text-gray-500">
+              <div className="rounded-full border-2 border-gray-500 w-8 h-8 flex items-center justify-center">
+                5
+              </div>
+              <p className="ml-2 text-lg">Export</p>
             </div>
           </div>
 
@@ -251,6 +256,16 @@ function App() {
                   };
                   setIntentionAnalysis(updatedAnalysis);
                 }}
+              />
+            </div>
+          )}
+
+          {/* Préview Stickman */}
+          {intentionAnalysis.length > 0 && (
+            <div className="mt-8">
+              <StickmanPreview 
+                segments={intentionAnalysis}
+                audioFile={file}
               />
             </div>
           )}
