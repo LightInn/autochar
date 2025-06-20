@@ -633,7 +633,7 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
                   leftLeg: { rotation: 0, bend: 15 },
                   rightLeg: { rotation: 0, bend: 15 }
                 }}
-                size={200}
+                size={250}
               />
               
               {/* Pinned Assets */}
@@ -646,7 +646,7 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
                     key={`pinned-${assetId}`}
                     className="absolute inset-0 pointer-events-none flex items-center justify-center"
                     style={{
-                      transform: `translate(${(asset.transform?.offsetX || 0) * 0.8}px, ${(asset.transform?.offsetY || 0) * 0.8}px)`,
+                      transform: `translate(${(asset.transform?.offsetX || 0) * 1.0}px, ${(asset.transform?.offsetY || 0) * 1.0}px)`,
                     }}
                   >
                     <img
@@ -654,9 +654,9 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
                       alt={asset.name}
                       className="opacity-70"
                       style={{
-                        transform: `scale(${(asset.transform?.scale || 1) * 0.8}) rotate(${asset.transform?.rotation || 0}deg)`,
-                        maxWidth: '80px',
-                        maxHeight: '80px',
+                        transform: `scale(${(asset.transform?.scale || 1) * 1.0}) rotate(${asset.transform?.rotation || 0}deg)`,
+                        maxWidth: '60px',
+                        maxHeight: '60px',
                       }}
                     />
                   </div>
@@ -668,7 +668,7 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
                 <div 
                   className="absolute inset-0 pointer-events-none flex items-center justify-center"
                   style={{
-                    transform: `translate(${(selectedAssetData.transform?.offsetX || 0) * 0.8}px, ${(selectedAssetData.transform?.offsetY || 0) * 0.8}px)`,
+                    transform: `translate(${(selectedAssetData.transform?.offsetX || 0) * 1.0}px, ${(selectedAssetData.transform?.offsetY || 0) * 1.0}px)`,
                   }}
                 >
                   <img
@@ -676,9 +676,9 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
                     alt={selectedAssetData.name}
                     className="ring-2 ring-blue-400 rounded"
                     style={{
-                      transform: `scale(${(selectedAssetData.transform?.scale || 1) * 0.8}) rotate(${selectedAssetData.transform?.rotation || 0}deg)`,
-                      maxWidth: '80px',
-                      maxHeight: '80px',
+                      transform: `scale(${(selectedAssetData.transform?.scale || 1) * 1.0}) rotate(${selectedAssetData.transform?.rotation || 0}deg)`,
+                      maxWidth: '60px',
+                      maxHeight: '60px',
                     }}
                   />
                 </div>
@@ -943,7 +943,7 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
                         key={assetId}
                         className="absolute inset-0 pointer-events-none flex items-center justify-center"
                         style={{
-                          transform: `translate(${(asset.transform?.offsetX || 0) * 0.8}px, ${(asset.transform?.offsetY || 0) * 0.8}px)`,
+                          transform: `translate(${(asset.transform?.offsetX || 0) * 1.0}px, ${(asset.transform?.offsetY || 0) * 1.0}px)`,
                         }}
                       >
                         <img
@@ -951,7 +951,7 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
                           alt={asset.name}
                           className="max-w-none"
                           style={{
-                            transform: `scale(${(asset.transform?.scale || 1) * 0.8}) rotate(${asset.transform?.rotation || 0}deg)`,
+                            transform: `scale(${(asset.transform?.scale || 1) * 1.0}) rotate(${asset.transform?.rotation || 0}deg)`,
                             maxWidth: '60px',
                             maxHeight: '60px',
                           }}
@@ -972,7 +972,7 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
                         key={`pinned-preview-${assetId}`}
                         className="absolute inset-0 pointer-events-none flex items-center justify-center"
                         style={{
-                          transform: `translate(${(asset.transform?.offsetX || 0) * 0.8}px, ${(asset.transform?.offsetY || 0) * 0.8}px)`,
+                          transform: `translate(${(asset.transform?.offsetX || 0) * 1.0}px, ${(asset.transform?.offsetY || 0) * 1.0}px)`,
                         }}
                       >
                         <img
@@ -980,7 +980,7 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
                           alt={asset.name}
                           className="opacity-60 ring-1 ring-blue-300 rounded"
                           style={{
-                            transform: `scale(${(asset.transform?.scale || 1) * 0.8}) rotate(${asset.transform?.rotation || 0}deg)`,
+                            transform: `scale(${(asset.transform?.scale || 1) * 1.0}) rotate(${asset.transform?.rotation || 0}deg)`,
                             maxWidth: '60px',
                             maxHeight: '60px',
                           }}

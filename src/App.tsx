@@ -5,7 +5,6 @@ import type { EmotionSegment } from "./utils/intentionAnalyzer";
 import { emotionManager, type CustomEmotion } from "./utils/emotionManager";
 import { audioAnalyzer, type AudioAnalysisData } from "./utils/audioAnalyzer";
 import AdvancedEditor from "./components/AdvancedEditor";
-import AssetBasedRenderer from "./components/AssetBasedRenderer";
 import VideoExporter from "./components/VideoExporter";
 
 // Extension du type EmotionSegment pour inclure l'émotion personnalisée
@@ -24,6 +23,7 @@ function App() {
   const [emotions, setEmotions] = useState<CustomEmotion[]>([]);
   const [audioAnalysis, setAudioAnalysis] = useState<AudioAnalysisData[]>([]);
   const [selectedEmotion, setSelectedEmotion] = useState<CustomEmotion | null>(null);
+  const [isTranscriptionExpanded, setIsTranscriptionExpanded] = useState(false);
 
   // Charger les émotions au démarrage
   useEffect(() => {
@@ -177,14 +177,79 @@ function App() {
           <div className="max-w-4xl mx-auto">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <div className="bg-gray-800 p-6 rounded-lg">
-                <h3 className="text-xl font-bold text-white mb-4">Animation temps réel</h3>
-                <AssetBasedRenderer
-                  emotion={selectedEmotion}
-                  audioData={audioAnalysis[0]}
-                  width={400}
-                  height={300}
-                  showDebugInfo={true}
-                />
+                <h3 className="text-xl font-bold text-white mb-4">📊 Informations de Séquence</h3>
+                
+                {/* Informations générales */}
+                <div className="space-y-4">
+                  <div className="bg-gray-700 rounded p-4">
+                    <h4 className="font-semibold text-white mb-2">Séquence Globale</h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-300">Durée totale:</span>
+                        <span className="text-white">{intentionAnalysis.length > 0 ? Math.max(...intentionAnalysis.map(s => s.end)).toFixed(1) : 0}s</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-300">Segments:</span>
+                        <span className="text-white">{intentionAnalysis.length}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-300">Émotions uniques:</span>
+                        <span className="text-white">{new Set(intentionAnalysis.map(s => s.emotion)).size}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Liste des segments */}
+                  <div className="bg-gray-700 rounded p-4">
+                    <h4 className="font-semibold text-white mb-2">Segments d'Émotions</h4>
+                    <div className="max-h-64 overflow-y-auto space-y-2">
+                      {intentionAnalysis.map((segment, index) => (
+                        <div key={index} className="bg-gray-600 rounded p-3">
+                          <div className="flex justify-between items-start mb-2">
+                            <span className="font-medium text-white">{segment.emotion}</span>
+                            <span className="text-xs text-gray-300">
+                              {segment.start.toFixed(1)}s - {segment.end.toFixed(1)}s
+                            </span>
+                          </div>
+                          <div className="text-sm text-gray-300 italic">
+                            "{segment.text}"
+                          </div>
+                          <div className="mt-2 flex items-center gap-2">
+                            <div 
+                              className="w-3 h-3 rounded"
+                              style={{ backgroundColor: segment.customEmotion?.color || '#6B7280' }}
+                            ></div>
+                            <span className="text-xs text-gray-400">
+                              {segment.customEmotion?.displayName || segment.emotion}
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              ({Object.values(segment.customEmotion?.assets || {}).flat().length} assets)
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Statistiques audio */}
+                  {audioAnalysis.length > 0 && (
+                    <div className="bg-gray-700 rounded p-4">
+                      <h4 className="font-semibold text-white mb-2">Analyse Audio</h4>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-gray-300">Points d'analyse:</span>
+                          <span className="text-white">{audioAnalysis.length}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-300">Volume moyen:</span>
+                          <span className="text-white">
+                            {(audioAnalysis.reduce((acc, curr) => acc + curr.volume, 0) / audioAnalysis.length * 100).toFixed(1)}%
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="bg-gray-800 p-6 rounded-lg">
                 <h3 className="text-xl font-bold text-white mb-4">Export Vidéo</h3>
@@ -387,31 +452,46 @@ function App() {
           {/* Résultats de transcription */}
           {transcript && (
             <div className="mt-8 bg-gray-800 p-8 rounded-lg shadow-lg">
-              <h2 className="text-2xl font-bold mb-4">📝 Transcription</h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-2xl font-bold">📝 Transcription</h2>
+                <button
+                  onClick={() => setIsTranscriptionExpanded(!isTranscriptionExpanded)}
+                  className="text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-2"
+                >
+                  {isTranscriptionExpanded ? '▼ Masquer' : '▶ Afficher'}
+                  <span className="text-sm text-gray-400">
+                    ({transcript.transcription?.length || 1} segment{transcript.transcription?.length > 1 ? 's' : ''})
+                  </span>
+                </button>
+              </div>
               
-              {transcript.transcription ? (
-                <div className="text-left space-y-2 mb-6">
-                  {transcript.transcription.map((segment: any, index: number) => (
-                    <div key={index} className="flex items-start space-x-3 py-2 border-b border-gray-700">
-                      <span className="text-blue-400 text-sm font-mono min-w-[100px]">
-                        {segment.timestamps.from}
-                      </span>
-                      <span className="text-white flex-1">
-                        {segment.text.trim()}
-                      </span>
+              {isTranscriptionExpanded && (
+                <>
+                  {transcript.transcription ? (
+                    <div className="text-left space-y-2 mb-6">
+                      {transcript.transcription.map((segment: any, index: number) => (
+                        <div key={index} className="flex items-start space-x-3 py-2 border-b border-gray-700">
+                          <span className="text-blue-400 text-sm font-mono min-w-[100px]">
+                            {segment.timestamps.from}
+                          </span>
+                          <span className="text-white flex-1">
+                            {segment.text.trim()}
+                          </span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-left whitespace-pre-wrap text-white mb-6">
-                  {transcript.text || transcript}
-                </div>
-              )}
-              
-              {transcript.model && (
-                <div className="pt-4 border-t border-gray-700 text-sm text-gray-400">
-                  <p>Modèle: {transcript.model.type} | Langue: {transcript.result?.language || 'fr'}</p>
-                </div>
+                  ) : (
+                    <div className="text-left whitespace-pre-wrap text-white mb-6">
+                      {transcript.text || transcript}
+                    </div>
+                  )}
+                  
+                  {transcript.model && (
+                    <div className="pt-4 border-t border-gray-700 text-sm text-gray-400">
+                      <p>Modèle: {transcript.model.type} | Langue: {transcript.result?.language || 'fr'}</p>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}

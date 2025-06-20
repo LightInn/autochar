@@ -208,7 +208,7 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
         const finalX = position.x + (transform?.offsetX || 0);
         const finalY = position.y + (transform?.offsetY || 0);
         const finalScale = position.scale * (transform?.scale || 1);
-        const finalRotation = position.rotation + (transform?.rotation || 0);
+        const finalRotation = (position.rotation + (transform?.rotation || 0)) * Math.PI / 180;
         
         ctx.translate(finalX, finalY);
         ctx.rotate(finalRotation);
@@ -352,10 +352,10 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
     };
   }, [isPreviewPlaying, previewTime, drawFrame]);
 
-  // Dessiner la première frame au montage
+  // Dessiner la première frame au montage et quand les segments changent
   useEffect(() => {
     drawFrame(previewTime);
-  }, [drawFrame, previewTime]);
+  }, [drawFrame, previewTime, segments]);
 
   // Redessiner quand le temps change (pour le scrubbing manuel)
   useEffect(() => {
