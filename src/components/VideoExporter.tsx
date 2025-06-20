@@ -362,6 +362,14 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
     const audioData = getAudioDataAtTime(time);
 
     if (emotion) {
+      console.log('=== EMOTION DEBUG ===');
+      console.log('Emotion name:', emotion.name);
+      console.log('Full emotion assets:', emotion.assets);
+      console.log('Accessories:', emotion.assets?.accessories);
+      console.log('Face assets:', emotion.assets?.face);
+      console.log('Head assets:', emotion.assets?.head);
+      console.log('========================');
+      
       drawCharacterFromAssets(ctx, emotion, audioData, time);
     } else {
       // Dessiner un placeholder si pas d'émotion

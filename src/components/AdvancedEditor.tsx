@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { EmotionManager } from '../utils/emotionManager';
 import { AssetManager, type AssetFile } from '../utils/assetManager';
 import StickmanViewer from './StickmanViewer';
+import CanvasPreview from './CanvasPreview';
 
 type TabType = 'emotions' | 'sets' | 'assets';
 
@@ -622,77 +623,14 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
           </div>
           
           <div className="bg-gray-700 rounded-lg p-4 h-80 flex items-center justify-center relative overflow-hidden">
-            <div className="relative">
-              {/* Stickman Base */}
-              <StickmanViewer
-                pose={{
-                  head: { expression: 'neutral', rotation: 0 },
-                  body: { lean: 0 },
-                  leftArm: { rotation: 45, bend: 30 },
-                  rightArm: { rotation: -45, bend: 30 },
-                  leftLeg: { rotation: 0, bend: 15 },
-                  rightLeg: { rotation: 0, bend: 15 }
-                }}
-                size={250}
-              />
-              
-              {/* Pinned Assets */}
-              {Array.from(pinnedAssets).map(assetId => {
-                const asset = assets.find(a => a.id === assetId);
-                if (!asset) return null;
-                
-                return (
-                  <div 
-                    key={`pinned-${assetId}`}
-                    className="absolute inset-0 pointer-events-none flex items-center justify-center"
-                    style={{
-                      transform: `translate(${(asset.transform?.offsetX || 0) * 1.0}px, ${(asset.transform?.offsetY || 0) * 1.0}px)`,
-                    }}
-                  >
-                    <img
-                      src={asset.data}
-                      alt={asset.name}
-                      className="opacity-70"
-                      style={{
-                        transform: `scale(${(asset.transform?.scale || 1) * 1.0}) rotate(${asset.transform?.rotation || 0}deg)`,
-                        maxWidth: '60px',
-                        maxHeight: '60px',
-                      }}
-                    />
-                  </div>
-                );
-              })}
-              
-              {/* Selected Asset (highlighted) */}
-              {selectedAssetData && (
-                <div 
-                  className="absolute inset-0 pointer-events-none flex items-center justify-center"
-                  style={{
-                    transform: `translate(${(selectedAssetData.transform?.offsetX || 0) * 1.0}px, ${(selectedAssetData.transform?.offsetY || 0) * 1.0}px)`,
-                  }}
-                >
-                  <img
-                    src={selectedAssetData.data}
-                    alt={selectedAssetData.name}
-                    className="ring-2 ring-blue-400 rounded"
-                    style={{
-                      transform: `scale(${(selectedAssetData.transform?.scale || 1) * 1.0}) rotate(${selectedAssetData.transform?.rotation || 0}deg)`,
-                      maxWidth: '60px',
-                      maxHeight: '60px',
-                    }}
-                  />
-                </div>
-              )}
-            </div>
-            
-            {/* No selection message */}
-            {!selectedAssetData && pinnedAssets.size === 0 && (
-              <div className="text-center text-gray-400">
-                <div className="text-2xl mb-2">👆</div>
-                <p>Select an asset to preview</p>
-                <p className="text-sm mt-1">Use 📌 to pin multiple assets</p>
-              </div>
-            )}
+            <CanvasPreview
+              width={320}
+              height={280}
+              assets={assets}
+              pinnedAssets={pinnedAssets}
+              selectedAsset={selectedAssetData}
+              showDebugMarkers={false}
+            />
           </div>
           
           {/* Pinned Assets Info */}
@@ -919,76 +857,14 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
             <h4 className="text-sm font-medium text-gray-300 mb-3">Current Emotion</h4>
             <div className="aspect-square bg-gray-600 rounded-lg flex items-center justify-center relative">
               {selectedEmotionData ? (
-                <div className="relative">
-                  {/* Base Stickman */}
-                  <StickmanViewer
-                    pose={{
-                      head: { expression: selectedEmotionData.name as any, rotation: 0 },
-                      body: { lean: 0 },
-                      leftArm: { rotation: 45, bend: 30 },
-                      rightArm: { rotation: -45, bend: 30 },
-                      leftLeg: { rotation: 0, bend: 15 },
-                      rightLeg: { rotation: 0, bend: 15 }
-                    }}
-                    size={250}
-                  />
-                  
-                  {/* Render Emotion Assets */}
-                  {selectedEmotionData.assets?.accessories?.map((assetId: string) => {
-                    const asset = assets.find(a => a.id === assetId);
-                    if (!asset) return null;
-                    
-                    return (
-                      <div 
-                        key={assetId}
-                        className="absolute inset-0 pointer-events-none flex items-center justify-center"
-                        style={{
-                          transform: `translate(${(asset.transform?.offsetX || 0) * 1.0}px, ${(asset.transform?.offsetY || 0) * 1.0}px)`,
-                        }}
-                      >
-                        <img
-                          src={asset.data}
-                          alt={asset.name}
-                          className="max-w-none"
-                          style={{
-                            transform: `scale(${(asset.transform?.scale || 1) * 1.0}) rotate(${asset.transform?.rotation || 0}deg)`,
-                            maxWidth: '60px',
-                            maxHeight: '60px',
-                          }}
-                        />
-                      </div>
-                    );
-                  })}
-
-                  {/* Render Pinned Assets */}
-                  {Array.from(pinnedAssets).map(assetId => {
-                    const asset = assets.find(a => a.id === assetId);
-                    if (!asset) return null;
-                    // Don't render if already in current emotion's assets
-                    if (selectedEmotionData.assets?.accessories?.includes(assetId)) return null;
-                    
-                    return (
-                      <div 
-                        key={`pinned-preview-${assetId}`}
-                        className="absolute inset-0 pointer-events-none flex items-center justify-center"
-                        style={{
-                          transform: `translate(${(asset.transform?.offsetX || 0) * 1.0}px, ${(asset.transform?.offsetY || 0) * 1.0}px)`,
-                        }}
-                      >
-                        <img
-                          src={asset.data}
-                          alt={asset.name}
-                          className="opacity-60 ring-1 ring-blue-300 rounded"
-                          style={{
-                            transform: `scale(${(asset.transform?.scale || 1) * 1.0}) rotate(${asset.transform?.rotation || 0}deg)`,
-                            maxWidth: '60px',
-                            maxHeight: '60px',
-                          }}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
+                <CanvasPreview
+                  width={300}
+                  height={300}
+                  emotion={selectedEmotionData}
+                  assets={assets}
+                  pinnedAssets={pinnedAssets}
+                  showDebugMarkers={false}
+                />
               ) : (
                 <div className="text-center text-gray-400">
                   <div className="text-2xl mb-2">🎭</div>
