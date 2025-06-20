@@ -10,6 +10,7 @@ import StickmanPreview from "./components/StickmanPreview";
 import StickmanEditorPage from "./components/StickmanEditorPage";
 import VideoExporter from "./components/VideoExporter";
 import VideoExporterTest from "./components/VideoExporterTest";
+import AdvancedEditor from "./components/AdvancedEditor";
 
 function App() {
   const [file, setFile] = useState<File | null>(null);
@@ -18,7 +19,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [transcriptionStatus, setTranscriptionStatus] = useState('');
-  const [currentPage, setCurrentPage] = useState<'main' | 'editor' | 'test'>('main');
+  const [currentPage, setCurrentPage] = useState<'main' | 'editor' | 'test' | 'advanced'>('main');
   const [customPoses, setCustomPoses] = useState<Record<EmotionType, StickmanPose>>(EMOTION_POSES);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -150,6 +151,19 @@ function App() {
     );
   }
 
+  // Si on est sur l'éditeur avancé
+  if (currentPage === 'advanced') {
+    return (
+      <AdvancedEditor
+        onBackToMain={() => setCurrentPage('main')}
+        onSave={(emotions) => {
+          console.log('Émotions sauvegardées:', emotions);
+          setCurrentPage('main');
+        }}
+      />
+    );
+  }
+
   return (
     <>
       {/* Header avec Navigation */}
@@ -169,10 +183,16 @@ function App() {
                 🧪 Test Export
               </button>
               <button
+                onClick={() => setCurrentPage('advanced')}
+                className="bg-pink-600 hover:bg-pink-500 text-white px-3 py-2 rounded-lg transition-colors text-sm"
+              >
+                🚀 Éditeur Avancé
+              </button>
+              <button
                 onClick={() => setCurrentPage('editor')}
                 className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white px-4 py-2 rounded-lg transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-xl"
               >
-                🎨 Éditeur de Stickman
+                🎨 Éditeur Simple
               </button>
             </div>
           </div>
