@@ -6,10 +6,43 @@ import "./App.css";
 function App() {
   const [count, setCount] = useState(0);
   const [file, setFile] = useState<File | null>(null);
+  const [transcript, setTranscript] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       setFile(e.target.files[0]);
+      setTranscript(null);
+      setError(null);
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("audio", file);
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch("http://localhost:3001/transcribe", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to transcribe audio.");
+      }
+
+      const data = await response.json();
+      setTranscript(data.transcript);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -25,7 +58,7 @@ function App() {
       </div>
       <h1>Vite + React</h1>
       <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
+        <button className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition duration-300" onClick={() => setCount((count) => count + 1)}>
           count is {count}
         </button>
         <p>
@@ -71,7 +104,7 @@ function App() {
             <div className="flex items-center justify-center bg-gray-700 border-2 border-dashed border-gray-600 rounded-lg p-12">
               <input
                 type="file"
-                accept=".wav"
+                accept=".wav, .mp3, .ogg"
                 onChange={handleFileChange}
                 className="hidden"
                 id="file-upload"
@@ -104,11 +137,29 @@ function App() {
               </label>
             </div>
             {file && (
-              <button className="mt-6 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition duration-300">
-                Next
+              <button 
+                onClick={handleUpload} 
+                disabled={isLoading}
+                className="mt-6 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition duration-300 disabled:bg-gray-500">
+                {isLoading ? 'Transcription en cours...' : 'Transcrire l\'audio'}
               </button>
             )}
           </div>
+
+          {error && (
+            <div className="mt-4 bg-red-800 p-4 rounded-lg">
+              <p className="text-white">{error}</p>
+            </div>
+          )}
+
+          {transcript && (
+            <div className="mt-8 bg-gray-800 p-8 rounded-lg shadow-lg">
+              <h2 className="text-2xl font-bold mb-4">Transcription</h2>
+              <div className="text-left">
+                {transcript.text}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </>
