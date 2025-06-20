@@ -36,6 +36,7 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
   const [showAssetPicker, setShowAssetPicker] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [pinnedAssets, setPinnedAssets] = useState<Set<string>>(new Set());
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
@@ -220,6 +221,22 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
       setAudioFile(file);
       setIsPlaying(false);
     }
+  };
+
+  const handleTogglePinAsset = (assetId: string) => {
+    setPinnedAssets(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(assetId)) {
+        newSet.delete(assetId);
+      } else {
+        newSet.add(assetId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleClearAllPinned = () => {
+    setPinnedAssets(new Set());
   };
 
   const selectedEmotionData = emotions.find(e => e.id === selectedEmotion);
@@ -557,15 +574,31 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
                           </div>
                         )}
                       </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteAsset(asset.id);
-                        }}
-                        className="text-red-400 hover:text-red-300 transition-colors text-sm"
-                      >
-                        ×
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleTogglePinAsset(asset.id);
+                          }}
+                          className={`text-sm px-2 py-1 rounded transition-colors ${
+                            pinnedAssets.has(asset.id)
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+                          }`}
+                          title={pinnedAssets.has(asset.id) ? 'Unpin from preview' : 'Pin to preview'}
+                        >
+                          📌
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteAsset(asset.id);
+                          }}
+                          className="text-red-400 hover:text-red-300 transition-colors text-sm"
+                        >
+                          ×
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -576,49 +609,114 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
 
         {/* Asset Preview with Stickman */}
         <div className="space-y-4">
-          <h4 className="font-medium text-gray-300">Preview</h4>
-          <div className="bg-gray-700 rounded-lg p-4 h-80 flex items-center justify-center">
-            {selectedAssetData ? (
-              <div className="relative">
-                {/* Stickman Base */}
-                <StickmanViewer
-                  pose={{
-                    head: { expression: 'neutral', rotation: 0 },
-                    body: { lean: 0 },
-                    leftArm: { rotation: 45, bend: 30 },
-                    rightArm: { rotation: -45, bend: 30 },
-                    leftLeg: { rotation: 0, bend: 15 },
-                    rightLeg: { rotation: 0, bend: 15 }
-                  }}
-                  size={200}
-                />
+          <div className="flex justify-between items-center">
+            <h4 className="font-medium text-gray-300">Preview</h4>
+            {pinnedAssets.size > 0 && (
+              <button
+                onClick={handleClearAllPinned}
+                className="text-xs bg-gray-600 hover:bg-gray-500 text-white px-2 py-1 rounded transition-colors"
+              >
+                Clear All Pins ({pinnedAssets.size})
+              </button>
+            )}
+          </div>
+          
+          <div className="bg-gray-700 rounded-lg p-4 h-80 flex items-center justify-center relative overflow-hidden">
+            <div className="relative">
+              {/* Stickman Base */}
+              <StickmanViewer
+                pose={{
+                  head: { expression: 'neutral', rotation: 0 },
+                  body: { lean: 0 },
+                  leftArm: { rotation: 45, bend: 30 },
+                  rightArm: { rotation: -45, bend: 30 },
+                  leftLeg: { rotation: 0, bend: 15 },
+                  rightLeg: { rotation: 0, bend: 15 }
+                }}
+                size={200}
+              />
+              
+              {/* Pinned Assets */}
+              {Array.from(pinnedAssets).map(assetId => {
+                const asset = assets.find(a => a.id === assetId);
+                if (!asset) return null;
                 
-                {/* Asset Overlay */}
+                return (
+                  <div 
+                    key={`pinned-${assetId}`}
+                    className="absolute inset-0 pointer-events-none flex items-center justify-center"
+                    style={{
+                      transform: `translate(${(asset.transform?.offsetX || 0) * 0.8}px, ${(asset.transform?.offsetY || 0) * 0.8}px)`,
+                    }}
+                  >
+                    <img
+                      src={asset.data}
+                      alt={asset.name}
+                      className="opacity-70"
+                      style={{
+                        transform: `scale(${(asset.transform?.scale || 1) * 0.8}) rotate(${asset.transform?.rotation || 0}deg)`,
+                        maxWidth: '80px',
+                        maxHeight: '80px',
+                      }}
+                    />
+                  </div>
+                );
+              })}
+              
+              {/* Selected Asset (highlighted) */}
+              {selectedAssetData && (
                 <div 
                   className="absolute inset-0 pointer-events-none flex items-center justify-center"
                   style={{
-                    transform: `translate(${selectedAssetData.transform?.offsetX || 0}px, ${selectedAssetData.transform?.offsetY || 0}px)`,
+                    transform: `translate(${(selectedAssetData.transform?.offsetX || 0) * 0.8}px, ${(selectedAssetData.transform?.offsetY || 0) * 0.8}px)`,
                   }}
                 >
                   <img
                     src={selectedAssetData.data}
                     alt={selectedAssetData.name}
-                    className="max-w-none"
+                    className="ring-2 ring-blue-400 rounded"
                     style={{
-                      transform: `scale(${selectedAssetData.transform?.scale || 1}) rotate(${selectedAssetData.transform?.rotation || 0}deg)`,
-                      maxWidth: '100px',
-                      maxHeight: '100px',
+                      transform: `scale(${(selectedAssetData.transform?.scale || 1) * 0.8}) rotate(${selectedAssetData.transform?.rotation || 0}deg)`,
+                      maxWidth: '80px',
+                      maxHeight: '80px',
                     }}
                   />
                 </div>
-              </div>
-            ) : (
+              )}
+            </div>
+            
+            {/* No selection message */}
+            {!selectedAssetData && pinnedAssets.size === 0 && (
               <div className="text-center text-gray-400">
                 <div className="text-2xl mb-2">👆</div>
                 <p>Select an asset to preview</p>
+                <p className="text-sm mt-1">Use 📌 to pin multiple assets</p>
               </div>
             )}
           </div>
+          
+          {/* Pinned Assets Info */}
+          {pinnedAssets.size > 0 && (
+            <div className="bg-gray-600 rounded p-3">
+              <h5 className="text-sm font-medium text-gray-300 mb-2">Pinned Assets ({pinnedAssets.size})</h5>
+              <div className="flex flex-wrap gap-1">
+                {Array.from(pinnedAssets).map(assetId => {
+                  const asset = assets.find(a => a.id === assetId);
+                  if (!asset) return null;
+                  return (
+                    <span 
+                      key={assetId}
+                      className="text-xs bg-blue-600 text-white px-2 py-1 rounded cursor-pointer hover:bg-blue-700"
+                      onClick={() => handleTogglePinAsset(assetId)}
+                      title="Click to unpin"
+                    >
+                      {asset.name} ×
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -835,7 +933,7 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
                     size={250}
                   />
                   
-                  {/* Render Assets */}
+                  {/* Render Emotion Assets */}
                   {selectedEmotionData.assets?.accessories?.map((assetId: string) => {
                     const asset = assets.find(a => a.id === assetId);
                     if (!asset) return null;
@@ -845,7 +943,7 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
                         key={assetId}
                         className="absolute inset-0 pointer-events-none flex items-center justify-center"
                         style={{
-                          transform: `translate(${asset.transform?.offsetX || 0}px, ${asset.transform?.offsetY || 0}px)`,
+                          transform: `translate(${(asset.transform?.offsetX || 0) * 0.8}px, ${(asset.transform?.offsetY || 0) * 0.8}px)`,
                         }}
                       >
                         <img
@@ -853,7 +951,36 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
                           alt={asset.name}
                           className="max-w-none"
                           style={{
-                            transform: `scale(${asset.transform?.scale || 1}) rotate(${asset.transform?.rotation || 0}deg)`,
+                            transform: `scale(${(asset.transform?.scale || 1) * 0.8}) rotate(${asset.transform?.rotation || 0}deg)`,
+                            maxWidth: '60px',
+                            maxHeight: '60px',
+                          }}
+                        />
+                      </div>
+                    );
+                  })}
+
+                  {/* Render Pinned Assets */}
+                  {Array.from(pinnedAssets).map(assetId => {
+                    const asset = assets.find(a => a.id === assetId);
+                    if (!asset) return null;
+                    // Don't render if already in current emotion's assets
+                    if (selectedEmotionData.assets?.accessories?.includes(assetId)) return null;
+                    
+                    return (
+                      <div 
+                        key={`pinned-preview-${assetId}`}
+                        className="absolute inset-0 pointer-events-none flex items-center justify-center"
+                        style={{
+                          transform: `translate(${(asset.transform?.offsetX || 0) * 0.8}px, ${(asset.transform?.offsetY || 0) * 0.8}px)`,
+                        }}
+                      >
+                        <img
+                          src={asset.data}
+                          alt={asset.name}
+                          className="opacity-60 ring-1 ring-blue-300 rounded"
+                          style={{
+                            transform: `scale(${(asset.transform?.scale || 1) * 0.8}) rotate(${asset.transform?.rotation || 0}deg)`,
                             maxWidth: '60px',
                             maxHeight: '60px',
                           }}

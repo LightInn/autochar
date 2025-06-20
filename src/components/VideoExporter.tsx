@@ -187,6 +187,7 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
     const renderOrder = ['background', 'body', 'leftLeg', 'rightLeg', 'leftArm', 'rightArm', 'head', 'face'];
     const allAssets = assetManager.getAllAssets();
 
+    // Rendre les assets de base
     for (const category of renderOrder) {
       const assetKey = `${emotion.id}_${category}`;
       const img = loadedAssets.current.get(assetKey);
@@ -224,6 +225,38 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
         }
         
         ctx.restore();
+      }
+    }
+
+    // Rendre les accessories (nouvelle structure)
+    if (emotion.assets.accessories && Array.isArray(emotion.assets.accessories)) {
+      for (const assetId of emotion.assets.accessories) {
+        const assetKey = `${emotion.id}_accessories_${assetId}`;
+        const img = loadedAssets.current.get(assetKey);
+        const assetFile = allAssets.find(a => a.id === assetId);
+        
+        if (img && img.complete && assetFile) {
+          const transform = assetFile.transform;
+          
+          ctx.save();
+          
+          // Position de base pour les accessories (centrée)
+          const finalX = centerX + (transform?.offsetX || 0);
+          const finalY = centerY + (transform?.offsetY || 0);
+          const finalScale = (transform?.scale || 1);
+          const finalRotation = (transform?.rotation || 0) * Math.PI / 180;
+          
+          ctx.translate(finalX, finalY);
+          ctx.rotate(finalRotation);
+          ctx.scale(finalScale, finalScale);
+          
+          // Dessiner l'image centrée
+          const width = img.width || 50;
+          const height = img.height || 50;
+          ctx.drawImage(img, -width/2, -height/2, width, height);
+          
+          ctx.restore();
+        }
       }
     }
   };
@@ -298,26 +331,31 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
     const animate = () => {
       const currentTime = Date.now();
       const elapsed = (currentTime - startTime) / 1000;
-      const newTime = lastTime + elapsed;
-
-      if (newTime >= totalDuration) {
-        setPreviewTime(0);
-        setIsPreviewPlaying(false);
-        return;
-      }
-
+      const newTime = Math.min(lastTime + elapsed, totalDuration);
+      
       setPreviewTime(newTime);
       drawFrame(newTime);
-      animationId = requestAnimationFrame(animate);
+      
+      if (newTime < totalDuration) {
+        animationId = requestAnimationFrame(animate);
+      } else {
+        setIsPreviewPlaying(false);
+      }
     };
 
     animationId = requestAnimationFrame(animate);
+
     return () => {
       if (animationId) {
         cancelAnimationFrame(animationId);
       }
     };
-  }, [isPreviewPlaying, exportSettings.fps, getTotalDuration]);
+  }, [isPreviewPlaying, previewTime, drawFrame]);
+
+  // Dessiner la première frame au montage
+  useEffect(() => {
+    drawFrame(previewTime);
+  }, [drawFrame, previewTime]);
 
   // Redessiner quand le temps change (pour le scrubbing manuel)
   useEffect(() => {

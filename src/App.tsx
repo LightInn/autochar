@@ -190,6 +190,8 @@ function App() {
                 <h3 className="text-xl font-bold text-white mb-4">Export Vidéo</h3>
                 <VideoExporter 
                   segments={intentionAnalysis}
+                  audioFile={file}
+                  audioAnalysis={audioAnalysis}
                 />
               </div>
             </div>
