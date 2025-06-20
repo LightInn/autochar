@@ -229,10 +229,10 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
   const renderEmotionsTab = () => (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h3 className="text-lg font-semibold">Emotions</h3>
+        <h3 className="text-lg font-semibold text-white">Emotions</h3>
         <button
           onClick={handleCreateEmotion}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
         >
           Add Emotion
         </button>
@@ -242,8 +242,10 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
         {emotions.map(emotion => (
           <div
             key={emotion.id}
-            className={`p-3 border rounded cursor-pointer ${
-              selectedEmotion === emotion.id ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+            className={`p-3 border rounded cursor-pointer transition-colors ${
+              selectedEmotion === emotion.id 
+                ? 'border-blue-400 bg-blue-900/30 text-white' 
+                : 'border-gray-600 bg-gray-800 text-gray-200 hover:bg-gray-700'
             }`}
             onClick={() => handleEmotionSelect(emotion.id)}
           >
@@ -254,15 +256,15 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
                   e.stopPropagation();
                   handleDeleteEmotion(emotion.id);
                 }}
-                className="text-red-600 hover:text-red-800"
+                className="text-red-400 hover:text-red-300 transition-colors"
               >
                 Delete
               </button>
             </div>
-            <div className="text-sm text-gray-600">
+            <div className="text-sm text-gray-400">
               Intensity: {emotion.intensity || 'N/A'}, Pose: {emotion.pose || 'N/A'}
             </div>
-            <div className="text-sm text-gray-600">
+            <div className="text-sm text-gray-400">
               Assets: {Object.values(emotion.assets || {}).flat().length || 0}
             </div>
           </div>
@@ -270,46 +272,46 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
       </div>
 
       {selectedEmotionData && (
-        <div className="border-t pt-4">
-          <h4 className="font-semibold mb-3">Edit Emotion: {selectedEmotionData.name}</h4>
+        <div className="border-t border-gray-600 pt-4">
+          <h4 className="font-semibold mb-3 text-white">Edit Emotion: {selectedEmotionData.name}</h4>
           
           <div className="space-y-3">
             <div>
-              <label className="block text-sm font-medium mb-1">Display Name</label>
+              <label className="block text-sm font-medium mb-1 text-gray-300">Display Name</label>
               <input
                 type="text"
                 value={selectedEmotionData.displayName || selectedEmotionData.name}
                 onChange={(e) => handleEmotionChange(selectedEmotion!, 'displayName', e.target.value)}
-                className="w-full px-3 py-2 border rounded"
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">Description</label>
+              <label className="block text-sm font-medium mb-1 text-gray-300">Description</label>
               <textarea
                 value={selectedEmotionData.description || ''}
                 onChange={(e) => handleEmotionChange(selectedEmotion!, 'description', e.target.value)}
-                className="w-full px-3 py-2 border rounded"
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 rows={3}
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">Color</label>
+              <label className="block text-sm font-medium mb-1 text-gray-300">Color</label>
               <input
                 type="color"
                 value={selectedEmotionData.color || '#6B7280'}
                 onChange={(e) => handleEmotionChange(selectedEmotion!, 'color', e.target.value)}
-                className="w-full px-3 py-2 border rounded"
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded h-12"
               />
             </div>
 
             <div>
               <div className="flex justify-between items-center mb-2">
-                <label className="block text-sm font-medium">Assets</label>
+                <label className="block text-sm font-medium text-gray-300">Assets</label>
                 <button
                   onClick={() => setShowAssetPicker(true)}
-                  className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
+                  className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700 transition-colors"
                 >
                   Add Asset
                 </button>
@@ -319,11 +321,11 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
                 {(selectedEmotionData.assets?.accessories || []).map((assetId: string) => {
                   const asset = assets.find(a => a.id === assetId);
                   return asset ? (
-                    <div key={assetId} className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                      <span className="text-sm">{asset.name}</span>
+                    <div key={assetId} className="flex justify-between items-center p-2 bg-gray-700 rounded border border-gray-600">
+                      <span className="text-sm text-gray-200">{asset.name}</span>
                       <button
                         onClick={() => handleRemoveAssetFromEmotion(selectedEmotion!, assetId)}
-                        className="text-red-600 hover:text-red-800 text-sm"
+                        className="text-red-400 hover:text-red-300 text-sm transition-colors"
                       >
                         Remove
                       </button>
@@ -341,7 +343,7 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
   const renderSetsTab = () => (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h3 className="text-lg font-semibold">Emotion Sets</h3>
+        <h3 className="text-lg font-semibold text-white">Emotion Sets</h3>
         <button
           onClick={() => {
             const name = prompt('Enter set name:');
@@ -354,7 +356,7 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
               setEmotionSets([...emotionSets, newSet]);
             }
           }}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
         >
           Create Set
         </button>
@@ -364,8 +366,10 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
         {emotionSets.map(set => (
           <div
             key={set.id}
-            className={`p-3 border rounded cursor-pointer ${
-              selectedSet === set.id ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+            className={`p-3 border rounded cursor-pointer transition-colors ${
+              selectedSet === set.id 
+                ? 'border-blue-400 bg-blue-900/30 text-white' 
+                : 'border-gray-600 bg-gray-800 text-gray-200 hover:bg-gray-700'
             }`}
             onClick={() => handleSetSelect(set.id)}
           >
@@ -377,12 +381,12 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
                   setEmotionSets(emotionSets.filter(s => s.id !== set.id));
                   if (selectedSet === set.id) setSelectedSet(null);
                 }}
-                className="text-red-600 hover:text-red-800"
+                className="text-red-400 hover:text-red-300 transition-colors"
               >
                 Delete
               </button>
             </div>
-            <div className="text-sm text-gray-600">
+            <div className="text-sm text-gray-400">
               Emotions: {set.emotions.length}
             </div>
           </div>
@@ -390,9 +394,9 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
       </div>
 
       {selectedSet && (
-        <div className="border-t pt-4">
-          <h4 className="font-semibold mb-3">Edit Set</h4>
-          <p className="text-gray-600">Set management functionality coming soon...</p>
+        <div className="border-t border-gray-600 pt-4">
+          <h4 className="font-semibold mb-3 text-white">Edit Set</h4>
+          <p className="text-gray-400">Set management functionality coming soon...</p>
         </div>
       )}
     </div>
@@ -401,26 +405,26 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
   const renderAssetsTab = () => (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h3 className="text-lg font-semibold">Assets</h3>
+        <h3 className="text-lg font-semibold text-white">Assets</h3>
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
         >
           Upload Asset
         </button>
       </div>
 
       {uploadProgress !== null && (
-        <div className="w-full bg-gray-200 rounded-full h-2">
+        <div className="w-full bg-gray-700 rounded-full h-2">
           <div
-            className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+            className="bg-blue-500 h-2 rounded-full transition-all duration-300"
             style={{ width: `${uploadProgress}%` }}
           />
         </div>
       )}
 
       {uploadError && (
-        <div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+        <div className="p-3 bg-red-900/50 border border-red-500 text-red-200 rounded">
           {uploadError}
         </div>
       )}
@@ -429,8 +433,10 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
         {assets.map(asset => (
           <div
             key={asset.id}
-            className={`p-3 border rounded cursor-pointer ${
-              selectedAsset === asset.id ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+            className={`p-3 border rounded cursor-pointer transition-colors ${
+              selectedAsset === asset.id 
+                ? 'border-blue-400 bg-blue-900/30 text-white' 
+                : 'border-gray-600 bg-gray-800 text-gray-200 hover:bg-gray-700'
             }`}
             onClick={() => handleAssetSelect(asset.id)}
           >
@@ -441,12 +447,12 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
                   e.stopPropagation();
                   handleDeleteAsset(asset.id);
                 }}
-                className="text-red-600 hover:text-red-800"
+                className="text-red-400 hover:text-red-300 transition-colors"
               >
                 Delete
               </button>
             </div>
-            <div className="text-sm text-gray-600">
+            <div className="text-sm text-gray-400">
               Type: {asset.type}
             </div>
           </div>
@@ -454,38 +460,38 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
       </div>
 
       {selectedAssetData && (
-        <div className="border-t pt-4">
-          <h4 className="font-semibold mb-3">Edit Asset: {selectedAssetData.name}</h4>
+        <div className="border-t border-gray-600 pt-4">
+          <h4 className="font-semibold mb-3 text-white">Edit Asset: {selectedAssetData.name}</h4>
           
           <div className="space-y-3">
             <div>
-              <label className="block text-sm font-medium mb-1">Offset X</label>
+              <label className="block text-sm font-medium mb-1 text-gray-300">Offset X</label>
               <input
                 type="range"
                 min="-200"
                 max="200"
                 value={selectedAssetData.transform?.offsetX || 0}
                 onChange={(e) => handleAssetTransformChange(selectedAsset!, { offsetX: parseInt(e.target.value) })}
-                className="w-full"
+                className="w-full accent-blue-500"
               />
-              <span className="text-sm text-gray-600">{selectedAssetData.transform?.offsetX || 0}px</span>
+              <span className="text-sm text-gray-400">{selectedAssetData.transform?.offsetX || 0}px</span>
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">Offset Y</label>
+              <label className="block text-sm font-medium mb-1 text-gray-300">Offset Y</label>
               <input
                 type="range"
                 min="-200"
                 max="200"
                 value={selectedAssetData.transform?.offsetY || 0}
                 onChange={(e) => handleAssetTransformChange(selectedAsset!, { offsetY: parseInt(e.target.value) })}
-                className="w-full"
+                className="w-full accent-blue-500"
               />
-              <span className="text-sm text-gray-600">{selectedAssetData.transform?.offsetY || 0}px</span>
+              <span className="text-sm text-gray-400">{selectedAssetData.transform?.offsetY || 0}px</span>
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">Scale</label>
+              <label className="block text-sm font-medium mb-1 text-gray-300">Scale</label>
               <input
                 type="range"
                 min="0.1"
@@ -493,22 +499,22 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
                 step="0.1"
                 value={selectedAssetData.transform?.scale || 1}
                 onChange={(e) => handleAssetTransformChange(selectedAsset!, { scale: parseFloat(e.target.value) })}
-                className="w-full"
+                className="w-full accent-blue-500"
               />
-              <span className="text-sm text-gray-600">{selectedAssetData.transform?.scale || 1}x</span>
+              <span className="text-sm text-gray-400">{selectedAssetData.transform?.scale || 1}x</span>
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">Rotation</label>
+              <label className="block text-sm font-medium mb-1 text-gray-300">Rotation</label>
               <input
                 type="range"
                 min="-180"
                 max="180"
                 value={selectedAssetData.transform?.rotation || 0}
                 onChange={(e) => handleAssetTransformChange(selectedAsset!, { rotation: parseInt(e.target.value) })}
-                className="w-full"
+                className="w-full accent-blue-500"
               />
-              <span className="text-sm text-gray-600">{selectedAssetData.transform?.rotation || 0}°</span>
+              <span className="text-sm text-gray-400">{selectedAssetData.transform?.rotation || 0}°</span>
             </div>
           </div>
         </div>
@@ -526,46 +532,46 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
   );
 
   return (
-    <div className="h-screen flex bg-gray-100">
+    <div className="h-screen flex bg-gray-900 text-white">
       {/* Left Panel - Editor */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Tab Navigation */}
-        <div className="bg-white border-b">
+        <div className="bg-gray-800 border-b border-gray-700">
           <div className="flex items-center">
             {onBackToMain && (
               <button
                 onClick={onBackToMain}
-                className="px-4 py-3 text-gray-600 hover:text-gray-800 border-r"
+                className="px-4 py-3 text-gray-200 hover:text-white hover:bg-gray-700 border-r border-gray-700 transition-colors"
               >
                 ← Back
               </button>
             )}
             <button
               onClick={() => setActiveTab('emotions')}
-              className={`px-6 py-3 font-medium ${
+              className={`px-6 py-3 font-medium transition-colors ${
                 activeTab === 'emotions'
-                  ? 'text-blue-600 border-b-2 border-blue-600'
-                  : 'text-gray-600 hover:text-gray-800'
+                  ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-700'
+                  : 'text-gray-300 hover:text-white hover:bg-gray-700'
               }`}
             >
               Emotions
             </button>
             <button
               onClick={() => setActiveTab('sets')}
-              className={`px-6 py-3 font-medium ${
+              className={`px-6 py-3 font-medium transition-colors ${
                 activeTab === 'sets'
-                  ? 'text-blue-600 border-b-2 border-blue-600'
-                  : 'text-gray-600 hover:text-gray-800'
+                  ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-700'
+                  : 'text-gray-300 hover:text-white hover:bg-gray-700'
               }`}
             >
               Sets
             </button>
             <button
               onClick={() => setActiveTab('assets')}
-              className={`px-6 py-3 font-medium ${
+              className={`px-6 py-3 font-medium transition-colors ${
                 activeTab === 'assets'
-                  ? 'text-blue-600 border-b-2 border-blue-600'
-                  : 'text-gray-600 hover:text-gray-800'
+                  ? 'text-blue-400 border-b-2 border-blue-400 bg-gray-700'
+                  : 'text-gray-300 hover:text-white hover:bg-gray-700'
               }`}
             >
               Assets
@@ -574,7 +580,7 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
               <div className="ml-auto pr-4 py-3">
                 <button
                   onClick={() => onSave(emotions)}
-                  className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                  className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
                 >
                   Save & Close
                 </button>
@@ -584,28 +590,28 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
         </div>
 
         {/* Tab Content */}
-        <div className="flex-1 overflow-auto p-6">
+        <div className="flex-1 overflow-auto p-6 bg-gray-900">
           {activeTab === 'emotions' && renderEmotionsTab()}
           {activeTab === 'sets' && renderSetsTab()}
           {activeTab === 'assets' && renderAssetsTab()}
         </div>
 
         {/* Audio Controls */}
-        <div className="bg-white border-t p-4">
+        <div className="bg-gray-800 border-t border-gray-700 p-4">
           <div className="flex items-center gap-4">
             <button
               onClick={() => audioInputRef.current?.click()}
-              className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
+              className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
             >
               Upload Audio
             </button>
             
             {audioFile && (
               <>
-                <span className="text-sm text-gray-600">{audioFile.name}</span>
+                <span className="text-sm text-gray-300">{audioFile.name}</span>
                 <button
                   onClick={isPlaying ? handlePause : handlePlay}
-                  className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                  className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
                 >
                   {isPlaying ? 'Pause' : 'Play'}
                 </button>
@@ -624,13 +630,13 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
       </div>
 
       {/* Right Panel - Sticky Preview */}
-      <div className="w-96 bg-white border-l flex flex-col">
-        <div className="p-4 border-b">
-          <h3 className="text-lg font-semibold">Preview</h3>
+      <div className="w-96 bg-gray-800 border-l border-gray-700 flex flex-col">
+        <div className="p-4 border-b border-gray-700">
+          <h3 className="text-lg font-semibold text-white">Preview</h3>
         </div>
         
         <div className="flex-1 p-4">
-          <div className="aspect-square bg-gray-50 rounded-lg mb-4">
+          <div className="aspect-square bg-gray-700 rounded-lg mb-4 border border-gray-600">
             <StickmanViewer
               pose={{
                 head: { expression: 'neutral', rotation: 0 },
@@ -654,8 +660,8 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
       {/* Asset Picker Modal */}
       {showAssetPicker && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold mb-4">Select Asset</h3>
+          <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 border border-gray-600">
+            <h3 className="text-lg font-semibold mb-4 text-white">Select Asset</h3>
             
             <div className="max-h-64 overflow-auto space-y-2">
               {assets.map(asset => (
@@ -667,10 +673,10 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
                     }
                     setShowAssetPicker(false);
                   }}
-                  className="w-full text-left p-3 border rounded hover:bg-gray-50"
+                  className="w-full text-left p-3 border border-gray-600 rounded hover:bg-gray-700 transition-colors bg-gray-800"
                 >
-                  <div className="font-medium">{asset.name}</div>
-                  <div className="text-sm text-gray-600">Type: {asset.type}</div>
+                  <div className="font-medium text-white">{asset.name}</div>
+                  <div className="text-sm text-gray-400">Type: {asset.type}</div>
                 </button>
               ))}
             </div>
@@ -678,7 +684,7 @@ export const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, on
             <div className="flex justify-end gap-2 mt-4">
               <button
                 onClick={() => setShowAssetPicker(false)}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                className="px-4 py-2 text-gray-300 hover:text-white transition-colors"
               >
                 Cancel
               </button>
