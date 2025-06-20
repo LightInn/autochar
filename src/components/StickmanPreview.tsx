@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import type { EmotionSegment } from '../utils/intentionAnalyzer';
-import { EMOTION_POSES, getPoseForEmotion, interpolatePoses } from '../utils/stickmanPoses';
+import type { EmotionSegment, EmotionType } from '../utils/intentionAnalyzer';
+import { EMOTION_POSES, interpolatePoses } from '../utils/stickmanPoses';
 import type { StickmanPose } from '../utils/stickmanPoses';
 import StickmanViewer from './StickmanViewer';
 import { getEmotionColor, getEmotionEmoji } from '../utils/intentionAnalyzer';
@@ -8,18 +8,28 @@ import { getEmotionColor, getEmotionEmoji } from '../utils/intentionAnalyzer';
 interface StickmanPreviewProps {
   segments: EmotionSegment[];
   audioFile?: File | null;
+  customPoses?: Record<EmotionType, StickmanPose>;
 }
 
-const StickmanPreview: React.FC<StickmanPreviewProps> = ({ segments, audioFile }) => {
+const StickmanPreview: React.FC<StickmanPreviewProps> = ({ segments, audioFile, customPoses = EMOTION_POSES }) => {
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
-  const [currentPose, setCurrentPose] = useState<StickmanPose>(EMOTION_POSES.neutral);
+  const [currentPose, setCurrentPose] = useState<StickmanPose>(customPoses.neutral);
   const [currentSegment, setCurrentSegment] = useState<EmotionSegment | null>(null);
   
   const audioRef = useRef<HTMLAudioElement>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<number | undefined>(undefined);
+
+  // Fonction pour obtenir une pose personnalisée
+  const getCustomPose = (emotion: EmotionType, intensity: number) => {
+    const basePose = customPoses[emotion];
+    const neutralPose = customPoses.neutral;
+    
+    // Mélanger avec neutral selon l'intensité
+    return interpolatePoses(neutralPose, basePose, intensity);
+  };
 
   // Initialiser l'audio
   useEffect(() => {
@@ -65,7 +75,7 @@ const StickmanPreview: React.FC<StickmanPreviewProps> = ({ segments, audioFile }
     setCurrentSegment(segment || null);
     
     if (segment) {
-      const pose = getPoseForEmotion(segment.emotion, segment.intensity);
+      const pose = getCustomPose(segment.emotion, segment.intensity);
       setCurrentPose(pose);
     } else {
       // Transition entre segments ou pose neutre
@@ -77,12 +87,12 @@ const StickmanPreview: React.FC<StickmanPreviewProps> = ({ segments, audioFile }
         const transitionDuration = nextSegment.start - prevSegment.end;
         const transitionProgress = (currentTime - prevSegment.end) / transitionDuration;
         
-        const prevPose = getPoseForEmotion(prevSegment.emotion, prevSegment.intensity);
-        const nextPose = getPoseForEmotion(nextSegment.emotion, nextSegment.intensity);
+        const prevPose = getCustomPose(prevSegment.emotion, prevSegment.intensity);
+        const nextPose = getCustomPose(nextSegment.emotion, nextSegment.intensity);
         
         setCurrentPose(interpolatePoses(prevPose, nextPose, transitionProgress));
       } else {
-        setCurrentPose(EMOTION_POSES.neutral);
+        setCurrentPose(customPoses.neutral);
       }
     }
   }, [currentTime, segments]);

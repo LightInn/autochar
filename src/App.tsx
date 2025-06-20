@@ -2,8 +2,12 @@ import { useState } from "react";
 import "./App.css";
 import { analyzeIntention } from "./utils/intentionAnalyzer";
 import type { EmotionSegment } from "./utils/intentionAnalyzer";
+import type { StickmanPose } from "./utils/stickmanPoses";
+import type { EmotionType } from "./utils/intentionAnalyzer";
+import { EMOTION_POSES } from "./utils/stickmanPoses";
 import IntentionAnalysis from "./components/IntentionAnalysis";
 import StickmanPreview from "./components/StickmanPreview";
+import StickmanEditorPage from "./components/StickmanEditorPage";
 
 function App() {
   const [file, setFile] = useState<File | null>(null);
@@ -12,6 +16,8 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [transcriptionStatus, setTranscriptionStatus] = useState('');
+  const [currentPage, setCurrentPage] = useState<'main' | 'editor'>('main');
+  const [customPoses, setCustomPoses] = useState<Record<EmotionType, StickmanPose>>(EMOTION_POSES);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -106,9 +112,40 @@ function App() {
     }
   };
 
+  // Si on est sur la page d'édition, afficher cette page
+  if (currentPage === 'editor') {
+    return (
+      <StickmanEditorPage
+        onBackToMain={() => setCurrentPage('main')}
+        onSaveChanges={(newPoses) => {
+          setCustomPoses(newPoses);
+          setCurrentPage('main');
+        }}
+        initialPoses={customPoses}
+      />
+    );
+  }
+
   return (
     <>
-     
+      {/* Header avec Navigation */}
+      <div className="bg-gray-800 border-b border-gray-700">
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <h1 className="text-2xl font-bold text-white">🤖 AutoStickman</h1>
+              <span className="text-gray-400 text-sm">Audio → Intention → Animation</span>
+            </div>
+            
+            <button
+              onClick={() => setCurrentPage('editor')}
+              className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white px-4 py-2 rounded-lg transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-xl"
+            >
+              🎨 Éditeur de Stickman
+            </button>
+          </div>
+        </div>
+      </div>
 
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-900 text-white">
         <div className="w-full max-w-2xl mx-auto p-4">
@@ -266,6 +303,7 @@ function App() {
               <StickmanPreview 
                 segments={intentionAnalysis}
                 audioFile={file}
+                customPoses={customPoses}
               />
             </div>
           )}
