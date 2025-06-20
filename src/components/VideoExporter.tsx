@@ -1,8 +1,27 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import type { EmotionSegment } from '../utils/intentionAnalyzer';
 import type { CustomEmotion } from '../utils/emotionManager';
-import { AssetManager } from '../utils/assetManager';
+import { AssetManager, type AssetFile } from '../utils/assetManager';
 import type { AudioAnalysisData } from '../utils/audioAnalyzer';
+
+// Helper for 2D transformation matrices (a, b, c, d, e, f)
+type Matrix = { a: number; b: number; c: number; d: number; e: number; f: number };
+const identityMatrix = (): Matrix => ({ a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 });
+const multiplyMatrices = (m1: Matrix, m2: Matrix): Matrix => ({
+  a: m1.a * m2.a + m1.c * m2.b,
+  b: m1.b * m2.a + m1.d * m2.b,
+  c: m1.a * m2.c + m1.c * m2.d,
+  d: m1.b * m2.c + m1.d * m2.d,
+  e: m1.a * m2.e + m1.c * m2.f + m1.e,
+  f: m1.b * m2.e + m1.d * m2.f + m1.f,
+});
+const translateMatrix = (m: Matrix, tx: number, ty: number): Matrix => multiplyMatrices(m, { a: 1, b: 0, c: 0, d: 1, e: tx, f: ty });
+const rotateMatrix = (m: Matrix, rad: number): Matrix => {
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  return multiplyMatrices(m, { a: cos, b: sin, c: -sin, d: cos, e: 0, f: 0 });
+};
+const scaleMatrix = (m: Matrix, sx: number, sy: number): Matrix => multiplyMatrices(m, { a: sx, b: 0, c: 0, d: sy, e: 0, f: 0 });
 
 // Extension du type EmotionSegment pour inclure l'émotion personnalisée
 interface ExtendedEmotionSegment extends EmotionSegment {
@@ -44,62 +63,68 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
     timingMethod: 'manual',
     frameDelay: 0
   });
+  const [allAssets, setAllAssets] = useState<AssetFile[]>([]);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const loadedAssets = useRef<Map<string, HTMLImageElement>>(new Map());
   const assetManager = useRef(new AssetManager()).current;
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const activeSegmentRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // Force reload assets from localStorage to ensure we have the latest transforms
+    const loadAssets = async () => {
+      await assetManager.loadAssets();
+      const loadedAssets = assetManager.getAllAssets();
+      console.log('VideoExporter - Assets loaded:', loadedAssets.map(a => ({ 
+        id: a.id, 
+        name: a.name, 
+        transform: a.transform 
+      })));
+      setAllAssets(loadedAssets);
+    };
+    loadAssets();
+  }, [segments, assetManager]);
 
   // Précharger tous les assets des émotions
   useEffect(() => {
-    const loadAssets = async () => {
-      const allAssets = assetManager.getAllAssets();
-      
+    const loadAssetImages = async () => {
+      if (!allAssets.length) return;
+
+      const assetFilesToLoad = new Set<AssetFile>();
+
+      // Collect all unique assets from all segments
       for (const segment of segments) {
         if (segment.customEmotion?.assets) {
-          // Parcourir les assets de l'émotion (nouvelle structure)
-          for (const [category, assetIds] of Object.entries(segment.customEmotion.assets)) {
-            if (Array.isArray(assetIds)) {
-              // Pour les catégories avec plusieurs assets (accessories, effects)
-              for (const assetId of assetIds) {
-                const assetFile = allAssets.find(a => a.id === assetId);
-                if (assetFile) {
-                  const key = `${segment.customEmotion.id}_${category}_${assetId}`;
-                  if (!loadedAssets.current.has(key)) {
-                    const img = new Image();
-                    img.src = assetFile.data;
-                    await new Promise((resolve) => {
-                      img.onload = resolve;
-                      img.onerror = resolve;
-                    });
-                    loadedAssets.current.set(key, img);
-                  }
-                }
-              }
-            } else if (typeof assetIds === 'string') {
-              // Pour les catégories avec un seul asset (head, body, etc.)
-              const assetFile = allAssets.find(a => a.id === assetIds);
+          for (const assetId of Object.values(segment.customEmotion.assets).flat()) {
+            if (assetId && typeof assetId === 'string') {
+              const assetFile = allAssets.find(a => a.id === assetId);
               if (assetFile) {
-                const key = `${segment.customEmotion.id}_${category}`;
-                if (!loadedAssets.current.has(key)) {
-                  const img = new Image();
-                  img.src = assetFile.data;
-                  await new Promise((resolve) => {
-                    img.onload = resolve;
-                    img.onerror = resolve;
-                  });
-                  loadedAssets.current.set(key, img);
-                }
+                assetFilesToLoad.add(assetFile);
               }
             }
           }
         }
       }
+
+      // Load images for the collected assets
+      for (const assetFile of assetFilesToLoad) {
+        if (!loadedAssets.current.has(assetFile.data)) {
+          const img = new Image();
+          img.src = assetFile.data;
+          await new Promise((resolve) => {
+            img.onload = resolve;
+            img.onerror = resolve; // Don't let one failed image stop others
+          });
+          loadedAssets.current.set(assetFile.data, img);
+        }
+      }
     };
     
-    loadAssets();
-  }, [segments, assetManager]);
+    loadAssetImages();
+  }, [segments, allAssets]);
 
   // Fonction pour détecter les codecs supportés
   const getSupportedMimeType = () => {
@@ -127,7 +152,7 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
   };
 
   // Rendu d'un personnage basé sur les assets
-  const drawCharacterFromAssets = (
+  const drawCharacterFromAssets = useCallback((
     ctx: CanvasRenderingContext2D, 
     emotion: CustomEmotion, 
     audioData?: AudioAnalysisData,
@@ -185,23 +210,18 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
 
     // Ordre de rendu (arrière vers avant)
     const renderOrder = ['background', 'body', 'leftLeg', 'rightLeg', 'leftArm', 'rightArm', 'head', 'face'];
-    const allAssets = assetManager.getAllAssets();
 
     // Rendre les assets de base
     for (const category of renderOrder) {
-      const assetKey = `${emotion.id}_${category}`;
-      const img = loadedAssets.current.get(assetKey);
+      const assetId = emotion.assets[category as keyof typeof emotion.assets] as string;
+      if (!assetId) continue;
+
+      const assetFile = allAssets.find(a => a.id === assetId);
+      const img = assetFile ? loadedAssets.current.get(assetFile.data) : undefined;
       const position = positions[category as keyof typeof positions];
       
-      // Get transform from asset file instead of emotion
-      let transform = null;
-      if (emotion.assets[category as keyof typeof emotion.assets]) {
-        const assetId = emotion.assets[category as keyof typeof emotion.assets] as string;
-        const assetFile = allAssets.find(a => a.id === assetId);
-        transform = assetFile?.transform;
-      }
-      
-      if (img && position && img.complete) {
+      if (img && position && img.complete && assetFile) {
+        const transform = assetFile.transform;
         ctx.save();
         
         // Appliquer les transformations personnalisées si elles existent
@@ -215,8 +235,8 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
         ctx.scale(finalScale, finalScale);
         
         // Dessiner l'image centrée
-        const width = category === 'background' ? exportSettings.width : img.width || 50;
-        const height = category === 'background' ? exportSettings.height : img.height || 50;
+        const width = category === 'background' ? exportSettings.width : img.width;
+        const height = category === 'background' ? exportSettings.height : img.height;
         
         if (category === 'background') {
           ctx.drawImage(img, -exportSettings.width/2, -exportSettings.height/2, exportSettings.width, exportSettings.height);
@@ -228,38 +248,75 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
       }
     }
 
-    // Rendre les accessories (nouvelle structure)
+    // Rendre les accessories avec une logique de transformation matricielle (Mode Débogage)
     if (emotion.assets.accessories && Array.isArray(emotion.assets.accessories)) {
+      console.log('Rendering accessories for emotion:', emotion.name, 'accessories:', emotion.assets.accessories);
+      
       for (const assetId of emotion.assets.accessories) {
-        const assetKey = `${emotion.id}_accessories_${assetId}`;
-        const img = loadedAssets.current.get(assetKey);
+        console.log('Looking for asset with ID:', assetId);
         const assetFile = allAssets.find(a => a.id === assetId);
+        console.log('Found asset:', assetFile ? { id: assetFile.id, name: assetFile.name, transform: assetFile.transform } : 'NOT FOUND');
         
-        if (img && img.complete && assetFile) {
-          const transform = assetFile.transform;
+        if (!assetFile) continue;
+
+        const img = loadedAssets.current.get(assetFile.data);
+        console.log('Image loaded:', img ? 'YES' : 'NO');
+        
+        if (img && img.complete) {
+          const transform = assetFile.transform || { offsetX: 0, offsetY: 0, scale: 1, rotation: 0 };
           
+          // Debug: Log the actual transform data
+          console.log(`Asset ${assetFile.name} transform:`, transform);
+
+          // --- FACTEURS D'ÉCHELLE CONFIGURABLES ---
+          const centerX = exportSettings.width / 2;
+          const centerY = exportSettings.height / 2;
+          
+          // Facteurs à ajuster manuellement pour correspondre à l'éditeur
+          // TODO: Ces valeurs doivent être calibrées en comparant visuellement
+          const POSITION_SCALE_FACTOR = 2.5; // Commencer par 1:1
+          const SIZE_SCALE_FACTOR = 0.5; // Commencer petit pour éviter les débordements
+          
+          console.log(`Using factors - Position: ${POSITION_SCALE_FACTOR}, Size: ${SIZE_SCALE_FACTOR}`);
+          console.log(`Canvas size: ${exportSettings.width}x${exportSettings.height}`);
+          console.log(`Original transform: offsetX=${transform.offsetX}, offsetY=${transform.offsetY}, scale=${transform.scale}`);
+
           ctx.save();
           
-          // Position de base pour les accessories (centrée)
-          const finalX = centerX + (transform?.offsetX || 0);
-          const finalY = centerY + (transform?.offsetY || 0);
-          const finalScale = (transform?.scale || 1);
-          const finalRotation = (transform?.rotation || 0) * Math.PI / 180;
+          // 1. Aller au centre du canvas
+          ctx.translate(centerX, centerY);
           
-          ctx.translate(finalX, finalY);
-          ctx.rotate(finalRotation);
-          ctx.scale(finalScale, finalScale);
+          // 2. Appliquer le décalage de l'asset avec facteur d'échelle
+          const scaledOffsetX = transform.offsetX * POSITION_SCALE_FACTOR;
+          const scaledOffsetY = transform.offsetY * POSITION_SCALE_FACTOR;
+          ctx.translate(scaledOffsetX, scaledOffsetY);
           
-          // Dessiner l'image centrée
+          // DEBUG VISUEL: Dessiner un point rouge pour voir où est le centre transformé
+          ctx.fillStyle = 'red';
+          ctx.fillRect(-2, -2, 4, 4);
+          
+          // 3. Appliquer la rotation de l'asset (convertir degrés en radians)
+          ctx.rotate(transform.rotation * Math.PI / 180);
+          
+          // 4. Appliquer l'échelle de l'asset avec facteur d'ajustement
+          const scaledScale = transform.scale * SIZE_SCALE_FACTOR;
+          ctx.scale(scaledScale, scaledScale);
+          
+          // 5. Dessiner l'image centrée sur l'origine transformée
           const width = img.width || 50;
           const height = img.height || 50;
-          ctx.drawImage(img, -width/2, -height/2, width, height);
+          ctx.drawImage(img, -width / 2, -height / 2, width, height);
+          
+          // DEBUG VISUEL: Dessiner un carré vert pour voir la zone de l'image
+          ctx.strokeStyle = 'lime';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(-width / 2, -height / 2, width, height);
           
           ctx.restore();
         }
       }
     }
-  };
+  }, [allAssets, exportSettings]);
 
   // Obtenir l'émotion active à un moment donné
   const getEmotionAtTime = (currentTime: number): CustomEmotion | null => {
@@ -315,7 +372,7 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
     }
 
     // Debug info overlay disabled for video export
-  }, [segments, exportSettings, audioAnalysis]);
+  }, [segments, exportSettings, audioAnalysis, allAssets, drawCharacterFromAssets]);
 
   // Animation de preview - logique simplifiée et corrigée
   useEffect(() => {
@@ -325,13 +382,10 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
     if (totalDuration === 0) return;
 
     let animationId: number;
-    let startTime = Date.now();
-    let lastTime = previewTime;
+    let startTime = performance.now() - previewTime * 1000;
 
-    const animate = () => {
-      const currentTime = Date.now();
-      const elapsed = (currentTime - startTime) / 1000;
-      const newTime = Math.min(lastTime + elapsed, totalDuration);
+    const animate = (now: number) => {
+      const newTime = Math.min((now - startTime) / 1000, totalDuration);
       
       setPreviewTime(newTime);
       drawFrame(newTime);
@@ -346,11 +400,27 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
     animationId = requestAnimationFrame(animate);
 
     return () => {
-      if (animationId) {
-        cancelAnimationFrame(animationId);
-      }
+      cancelAnimationFrame(animationId);
     };
-  }, [isPreviewPlaying, previewTime, drawFrame]);
+  }, [isPreviewPlaying, drawFrame]);
+
+  // Auto-scroll for timeline
+  useEffect(() => {
+    if (activeSegmentRef.current && scrollContainerRef.current) {
+      const container = scrollContainerRef.current;
+      const activeElement = activeSegmentRef.current;
+      
+      const containerRect = container.getBoundingClientRect();
+      const elementRect = activeElement.getBoundingClientRect();
+
+      if (elementRect.bottom > containerRect.bottom || elementRect.top < containerRect.top) {
+        activeElement.scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest',
+        });
+      }
+    }
+  }, [previewTime]);
 
   // Dessiner la première frame au montage et quand les segments changent
   useEffect(() => {
@@ -580,63 +650,60 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
       </div>
 
       {/* Paramètres d'export */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">Résolution</label>
-          <div className="flex gap-2">
-            <input
-              type="number"
-              value={exportSettings.width}
-              onChange={(e) => setExportSettings(prev => ({ ...prev, width: parseInt(e.target.value) || 800 }))}
-              className="bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white w-20"
-            />
-            <span className="text-gray-400 self-center">×</span>
-            <input
-              type="number"
-              value={exportSettings.height}
-              onChange={(e) => setExportSettings(prev => ({ ...prev, height: parseInt(e.target.value) || 600 }))}
-              className="bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white w-20"
-            />
-          </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="space-y-1">
+          <label className="text-sm font-medium text-gray-300">Width</label>
+          <input 
+            type="number" 
+            value={exportSettings.width}
+            className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            onChange={(e) => setExportSettings(prev => ({ ...prev, width: parseInt(e.target.value) || 800 }))}
+          />
         </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">FPS</label>
-          <select
+        <div className="space-y-1">
+          <label className="text-sm font-medium text-gray-300">Height</label>
+          <input 
+            type="number" 
+            value={exportSettings.height}
+            className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            onChange={(e) => setExportSettings(prev => ({ ...prev, height: parseInt(e.target.value) || 600 }))}
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-sm font-medium text-gray-300">FPS</label>
+          <select 
             value={exportSettings.fps}
+            className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             onChange={(e) => setExportSettings(prev => ({ ...prev, fps: parseInt(e.target.value) }))}
-            className="bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white w-full"
           >
-            <option value={24}>24 FPS</option>
-            <option value={30}>30 FPS</option>
-            <option value={60}>60 FPS</option>
+            <option value="24">24</option>
+            <option value="30">30</option>
+            <option value="60">60</option>
           </select>
         </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">Arrière-plan</label>
-          <select
+        <div className="space-y-1">
+          <label className="text-sm font-medium text-gray-300">Background</label>
+          <select 
             value={exportSettings.backgroundColor}
+            className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             onChange={(e) => setExportSettings(prev => ({ ...prev, backgroundColor: e.target.value as ExportSettings['backgroundColor'] }))}
-            className="bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white w-full"
           >
             <option value="transparent">Transparent</option>
-            <option value="white">Blanc</option>
-            <option value="black">Noir</option>
-            <option value="green">Vert (Chroma Key)</option>
+            <option value="white">White</option>
+            <option value="black">Black</option>
+            <option value="green">Green Screen</option>
           </select>
         </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">Qualité</label>
-          <select
+        <div className="space-y-1">
+          <label className="text-sm font-medium text-gray-300">Quality</label>
+          <select 
             value={exportSettings.quality}
+            className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             onChange={(e) => setExportSettings(prev => ({ ...prev, quality: e.target.value as ExportSettings['quality'] }))}
-            className="bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white w-full"
           >
-            <option value="high">Haute</option>
-            <option value="medium">Moyenne</option>
-            <option value="low">Basse</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
           </select>
         </div>
       </div>
