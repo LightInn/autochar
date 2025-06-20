@@ -8,6 +8,7 @@ import { EMOTION_POSES } from "./utils/stickmanPoses";
 import IntentionAnalysis from "./components/IntentionAnalysis";
 import StickmanPreview from "./components/StickmanPreview";
 import StickmanEditorPage from "./components/StickmanEditorPage";
+import VideoExporter from "./components/VideoExporter";
 
 function App() {
   const [file, setFile] = useState<File | null>(null);
@@ -179,8 +180,8 @@ function App() {
               <p className="ml-2 text-lg">Preview</p>
             </div>
             <div className="flex-auto border-t-2 border-gray-700 mx-4"></div>
-            <div className="flex items-center text-gray-500">
-              <div className="rounded-full border-2 border-gray-500 w-8 h-8 flex items-center justify-center">
+            <div className={`flex items-center ${intentionAnalysis.length > 0 ? 'text-blue-500' : 'text-gray-500'}`}>
+              <div className={`rounded-full ${intentionAnalysis.length > 0 ? 'bg-blue-500 text-white' : 'border-2 border-gray-500'} w-8 h-8 flex items-center justify-center`}>
                 5
               </div>
               <p className="ml-2 text-lg">Export</p>
@@ -303,6 +304,16 @@ function App() {
               <StickmanPreview 
                 segments={intentionAnalysis}
                 audioFile={file}
+                customPoses={customPoses}
+              />
+            </div>
+          )}
+
+          {/* Export Vidéo */}
+          {intentionAnalysis.length > 0 && (
+            <div className="mt-8">
+              <VideoExporter 
+                segments={intentionAnalysis}
                 customPoses={customPoses}
               />
             </div>
