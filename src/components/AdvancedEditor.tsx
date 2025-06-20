@@ -20,7 +20,8 @@ const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, onSave })
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showAssetUpload, setShowAssetUpload] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [draggedAsset, setDraggedAsset] = useState<AssetFile | null>(null);
+  const [showAssetPicker, setShowAssetPicker] = useState(false);
+  const [assetPickerCategory, setAssetPickerCategory] = useState<keyof CustomEmotion['assets']>('head');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
@@ -138,23 +139,6 @@ const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, onSave })
       };
       
       handleUpdateEmotion({ assets: updatedAssets });
-    }
-  };
-
-  // Drag & Drop pour assigner les assets
-  const handleDragStart = (asset: AssetFile) => {
-    setDraggedAsset(asset);
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
-
-  const handleDrop = (e: React.DragEvent, category: keyof CustomEmotion['assets']) => {
-    e.preventDefault();
-    if (draggedAsset) {
-      handleAssignAssetToEmotion(draggedAsset.id, category);
-      setDraggedAsset(null);
     }
   };
 
@@ -329,13 +313,80 @@ const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, onSave })
                     </div>
 
                     <div className="mt-4">
-                      <label className="block text-sm font-medium mb-2">Description / Déclencheurs</label>
+                      <label className="block text-sm font-medium mb-2">Description</label>
                       <textarea
                         value={selectedEmotion.description}
                         onChange={(e) => handleUpdateEmotion({ description: e.target.value })}
                         className="w-full bg-gray-600 border border-gray-500 rounded-lg px-3 py-2 text-white h-20 resize-none"
-                        placeholder="Décrivez cette émotion et listez les mots-clés qui la déclenchent..."
+                        placeholder="Décrivez cette émotion..."
                       />
+                    </div>
+
+                    {/* Gestion des triggers */}
+                    <div className="mt-4">
+                      <label className="block text-sm font-medium mb-2">🎯 Déclencheurs (mots-clés)</label>
+                      <div className="bg-gray-600 border border-gray-500 rounded-lg p-3">
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          {selectedEmotion.description.split(',').map((trigger, index) => (
+                            trigger.trim() && (
+                              <span key={index} className="bg-purple-600 text-white px-2 py-1 rounded text-sm flex items-center gap-1">
+                                {trigger.trim()}
+                                <button
+                                  onClick={() => {
+                                    const triggers = selectedEmotion.description.split(',').map(t => t.trim()).filter(t => t);
+                                    triggers.splice(index, 1);
+                                    handleUpdateEmotion({ description: triggers.join(', ') });
+                                  }}
+                                  className="text-purple-200 hover:text-white ml-1"
+                                >
+                                  ×
+                                </button>
+                              </span>
+                            )
+                          ))}
+                        </div>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            placeholder="Ajouter un déclencheur..."
+                            className="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-sm"
+                            onKeyPress={(e) => {
+                              if (e.key === 'Enter') {
+                                const input = e.target as HTMLInputElement;
+                                const newTrigger = input.value.trim();
+                                if (newTrigger) {
+                                  const currentTriggers = selectedEmotion.description.split(',').map(t => t.trim()).filter(t => t);
+                                  if (!currentTriggers.includes(newTrigger)) {
+                                    currentTriggers.push(newTrigger);
+                                    handleUpdateEmotion({ description: currentTriggers.join(', ') });
+                                  }
+                                  input.value = '';
+                                }
+                              }
+                            }}
+                          />
+                          <button
+                            onClick={() => {
+                              const input = document.querySelector('input[placeholder="Ajouter un déclencheur..."]') as HTMLInputElement;
+                              const newTrigger = input?.value.trim();
+                              if (newTrigger) {
+                                const currentTriggers = selectedEmotion.description.split(',').map(t => t.trim()).filter(t => t);
+                                if (!currentTriggers.includes(newTrigger)) {
+                                  currentTriggers.push(newTrigger);
+                                  handleUpdateEmotion({ description: currentTriggers.join(', ') });
+                                }
+                                input.value = '';
+                              }
+                            }}
+                            className="bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded text-sm transition-colors"
+                          >
+                            Ajouter
+                          </button>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-2">
+                          Ces mots-clés déterminent quand cette émotion sera déclenchée lors de l'analyse audio
+                        </p>
+                      </div>
                     </div>
 
                     {/* Paramètres d'animation */}
@@ -411,19 +462,18 @@ const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, onSave })
                       </div>
                     </div>
 
-                    {/* Zone de drop pour les assets */}
+                    {/* Sélecteur d'assets */}
                     <div className="mt-6">
                       <h4 className="font-bold mb-3">🖼️ Assets assignés</h4>
                       <div className="grid grid-cols-4 gap-2">
                         {['head', 'face', 'body', 'leftArm', 'rightArm', 'leftLeg', 'rightLeg', 'background'].map((category) => (
                           <div
                             key={category}
-                            onDragOver={handleDragOver}
-                            onDrop={(e) => handleDrop(e, category as keyof CustomEmotion['assets'])}
-                            className="bg-gray-600 border-2 border-dashed border-gray-500 rounded-lg p-4 text-center min-h-20 flex items-center justify-center relative group hover:border-gray-400 transition-colors"
+                            className="bg-gray-600 border border-gray-500 rounded-lg p-3 text-center min-h-24 flex flex-col items-center justify-center relative group"
                           >
+                            <div className="text-xs font-medium text-gray-300 mb-1">{category}</div>
                             {selectedEmotion.assets[category as keyof CustomEmotion['assets']] ? (
-                              <div className="relative">
+                              <div className="relative flex-1 flex items-center justify-center">
                                 <img
                                   src={selectedEmotion.assets[category as keyof CustomEmotion['assets']] as string}
                                   alt={category}
@@ -436,16 +486,22 @@ const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, onSave })
                                       [category]: undefined
                                     }
                                   })}
-                                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                                  className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 text-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
                                 >
                                   ×
                                 </button>
                               </div>
                             ) : (
-                              <div className="text-xs text-gray-400">
-                                {category}
-                                <br />
-                                <span className="text-xs">Glissez un asset</span>
+                              <div className="flex-1 flex items-center justify-center">
+                                <button
+                                  onClick={() => {
+                                    setAssetPickerCategory(category as keyof CustomEmotion['assets']);
+                                    setShowAssetPicker(true);
+                                  }}
+                                  className="bg-blue-600 hover:bg-blue-500 text-white text-xs px-2 py-1 rounded transition-colors"
+                                >
+                                  Choisir
+                                </button>
                               </div>
                             )}
                           </div>
@@ -502,9 +558,7 @@ const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, onSave })
                   {assetsByCategory.map((asset) => (
                     <div
                       key={asset.id}
-                      draggable
-                      onDragStart={() => handleDragStart(asset)}
-                      className="bg-gray-700 rounded-lg p-3 cursor-move hover:bg-gray-600 transition-colors group"
+                      className="bg-gray-700 rounded-lg p-3 hover:bg-gray-600 transition-colors group"
                     >
                       <div className="relative">
                         <img
@@ -597,6 +651,90 @@ const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, onSave })
           </div>
         </div>
       </div>
+
+      {/* Modal de sélection d'assets */}
+      {showAssetPicker && selectedEmotion && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 p-6 rounded-lg max-w-4xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-white">
+                Choisir un asset pour : {assetPickerCategory}
+              </h3>
+              <button
+                onClick={() => setShowAssetPicker(false)}
+                className="text-gray-400 hover:text-white text-xl font-bold"
+              >
+                ×
+              </button>
+            </div>
+            
+            {/* Filtre par catégorie */}
+            <div className="mb-4">
+              <select
+                value={selectedAssetCategory}
+                onChange={(e) => setSelectedAssetCategory(e.target.value as AssetFile['category'])}
+                className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white"
+              >
+                <option value="head">Tête</option>
+                <option value="face">Visage</option>
+                <option value="body">Corps</option>
+                <option value="leftArm">Bras Gauche</option>
+                <option value="rightArm">Bras Droit</option>
+                <option value="leftLeg">Jambe Gauche</option>
+                <option value="rightLeg">Jambe Droite</option>
+                <option value="background">Arrière-plan</option>
+                <option value="accessory">Accessoire</option>
+                <option value="effect">Effet</option>
+              </select>
+            </div>
+
+            {/* Grille d'assets */}
+            <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-4">
+              {assetsByCategory.map((asset) => (
+                <div
+                  key={asset.id}
+                  className="bg-gray-700 rounded-lg p-3 cursor-pointer hover:bg-gray-600 transition-colors border-2 border-transparent hover:border-blue-500"
+                  onClick={() => {
+                    handleAssignAssetToEmotion(asset.id, assetPickerCategory);
+                    setShowAssetPicker(false);
+                  }}
+                >
+                  <img
+                    src={asset.data}
+                    alt={asset.name}
+                    className="w-full h-16 object-contain rounded mb-2"
+                  />
+                  <p className="text-xs text-gray-300 text-center truncate">{asset.name}</p>
+                </div>
+              ))}
+            </div>
+
+            {assetsByCategory.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                <p>Aucun asset dans la catégorie "{selectedAssetCategory}"</p>
+                <button
+                  onClick={() => {
+                    setShowAssetPicker(false);
+                    setActiveTab('assets');
+                  }}
+                  className="mt-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg transition-colors"
+                >
+                  Aller aux assets
+                </button>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowAssetPicker(false)}
+                className="bg-gray-600 hover:bg-gray-500 text-white px-4 py-2 rounded-lg transition-colors"
+              >
+                Annuler
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal d'upload */}
       {showAssetUpload && (

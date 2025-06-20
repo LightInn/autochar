@@ -143,27 +143,6 @@ function App() {
     }
   };
 
-  // Modifier les triggers d'émotion
-  const handleUpdateEmotionTriggers = (emotionId: string, newTriggers: string[]) => {
-    const updatedEmotion = emotionManager.updateEmotion(emotionId, { 
-      description: newTriggers.join(', ') 
-    });
-    if (updatedEmotion) {
-      setEmotions(emotionManager.getAllEmotions());
-      
-      // Mettre à jour l'analyse d'intention si elle existe
-      if (intentionAnalysis.length > 0) {
-        const updatedAnalysis = intentionAnalysis.map(segment => {
-          if (segment.customEmotion?.id === emotionId) {
-            return { ...segment, customEmotion: updatedEmotion };
-          }
-          return segment;
-        });
-        setIntentionAnalysis(updatedAnalysis);
-      }
-    }
-  };
-
   // Si on est sur l'éditeur, afficher cette page
   if (currentPage === 'editor') {
     return (
@@ -461,20 +440,6 @@ function App() {
                         <span className="text-xs bg-gray-600 px-2 py-1 rounded">
                           {Math.round(segment.confidence * 100)}%
                         </span>
-                        <button
-                          onClick={() => {
-                            const newTriggers = prompt(
-                              'Modifier les déclencheurs pour cette émotion (séparés par des virgules):',
-                              segment.triggers.join(', ')
-                            );
-                            if (newTriggers && segment.customEmotion) {
-                              handleUpdateEmotionTriggers(segment.customEmotion.id, newTriggers.split(',').map(t => t.trim()));
-                            }
-                          }}
-                          className="text-xs bg-blue-600 hover:bg-blue-500 px-2 py-1 rounded transition-colors"
-                        >
-                          ⚙️ Triggers
-                        </button>
                       </div>
                     </div>
                     <p className="text-gray-300 mb-2">"{segment.text}"</p>
