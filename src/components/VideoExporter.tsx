@@ -46,6 +46,7 @@ interface ExportSettings {
 
 const VideoExporter: React.FC<VideoExporterProps> = ({ 
   segments, 
+  audioFile,
   audioAnalysis = []
 }) => {
   const [isExporting, setIsExporting] = useState(false);
@@ -66,6 +67,7 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
   const [allAssets, setAllAssets] = useState<AssetFile[]>([]);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const loadedAssets = useRef<Map<string, HTMLImageElement>>(new Map());
@@ -87,6 +89,18 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
     };
     loadAssets();
   }, [segments, assetManager]);
+
+  // Créer une URL pour l'audio si disponible
+  useEffect(() => {
+    if (audioFile && audioRef.current) {
+      const audioUrl = URL.createObjectURL(audioFile);
+      audioRef.current.src = audioUrl;
+      
+      return () => {
+        URL.revokeObjectURL(audioUrl);
+      };
+    }
+  }, [audioFile]);
 
   // Précharger tous les assets des émotions
   useEffect(() => {
@@ -519,13 +533,35 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
   };
 
   const togglePreview = () => {
-    setIsPreviewPlaying(!isPreviewPlaying);
+    const newPlayingState = !isPreviewPlaying;
+    setIsPreviewPlaying(newPlayingState);
+    
+    // Synchroniser l'audio avec la preview
+    if (audioRef.current) {
+      if (newPlayingState) {
+        audioRef.current.currentTime = previewTime;
+        audioRef.current.play().catch(console.error);
+      } else {
+        audioRef.current.pause();
+      }
+    }
   };
 
   const seekPreview = (time: number) => {
-    setPreviewTime(Math.max(0, Math.min(time, getTotalDuration())));
+    const clampedTime = Math.max(0, Math.min(time, getTotalDuration()));
+    setPreviewTime(clampedTime);
+    
+    // Synchroniser l'audio
+    if (audioRef.current) {
+      audioRef.current.currentTime = clampedTime;
+    }
+    
+    // Mettre en pause si on scrub manuellement
     if (isPreviewPlaying) {
       setIsPreviewPlaying(false);
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
     }
   };
 
@@ -541,10 +577,28 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
 
   return (
     <div className="bg-gray-800 p-6 rounded-lg space-y-6">
+      {/* Audio element caché pour la lecture synchronisée */}
+      <audio
+        ref={audioRef}
+        preload="auto"
+        onTimeUpdate={(e) => {
+          if (isPreviewPlaying) {
+            const currentTime = (e.target as HTMLAudioElement).currentTime;
+            setPreviewTime(currentTime);
+          }
+        }}
+        onEnded={() => setIsPreviewPlaying(false)}
+      />
+      
       <div className="flex items-center justify-between">
         <h3 className="text-xl font-bold text-white">🎬 Export Vidéo</h3>
-        <div className="text-sm text-gray-400">
-          {segments.length} segment(s) | {getTotalDuration().toFixed(1)}s
+        <div className="text-sm text-gray-400 flex items-center gap-4">
+          <span>{segments.length} segment(s) | {getTotalDuration().toFixed(1)}s</span>
+          {audioFile && (
+            <span className="text-green-400 flex items-center gap-1">
+              🔊 Audio disponible
+            </span>
+          )}
         </div>
       </div>
 
