@@ -248,69 +248,48 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
       }
     }
 
-    // Rendre les accessories avec une logique de transformation matricielle (Mode Débogage)
+    // Rendre les accessories avec animation audio intégrée
     if (emotion.assets.accessories && Array.isArray(emotion.assets.accessories)) {
-      console.log('Rendering accessories for emotion:', emotion.name, 'accessories:', emotion.assets.accessories);
-      
+      const headAnim = positions.head; // Position animée de la tête
+
       for (const assetId of emotion.assets.accessories) {
-        console.log('Looking for asset with ID:', assetId);
         const assetFile = allAssets.find(a => a.id === assetId);
-        console.log('Found asset:', assetFile ? { id: assetFile.id, name: assetFile.name, transform: assetFile.transform } : 'NOT FOUND');
-        
         if (!assetFile) continue;
 
         const img = loadedAssets.current.get(assetFile.data);
-        console.log('Image loaded:', img ? 'YES' : 'NO');
         
         if (img && img.complete) {
           const transform = assetFile.transform || { offsetX: 0, offsetY: 0, scale: 1, rotation: 0 };
-          
-          // Debug: Log the actual transform data
-          console.log(`Asset ${assetFile.name} transform:`, transform);
 
-          // --- FACTEURS D'ÉCHELLE CONFIGURABLES ---
-          const centerX = exportSettings.width / 2;
-          const centerY = exportSettings.height / 2;
-          
-          // Facteurs à ajuster manuellement pour correspondre à l'éditeur
-          // TODO: Ces valeurs doivent être calibrées en comparant visuellement
-          const POSITION_SCALE_FACTOR = 2.5; // Commencer par 1:1
-          const SIZE_SCALE_FACTOR = 0.5; // Commencer petit pour éviter les débordements
-          
-          console.log(`Using factors - Position: ${POSITION_SCALE_FACTOR}, Size: ${SIZE_SCALE_FACTOR}`);
-          console.log(`Canvas size: ${exportSettings.width}x${exportSettings.height}`);
-          console.log(`Original transform: offsetX=${transform.offsetX}, offsetY=${transform.offsetY}, scale=${transform.scale}`);
+          // Facteurs d'échelle pour correspondre à l'éditeur  
+          const POSITION_SCALE_FACTOR = 2.5;
+          const SIZE_SCALE_FACTOR = 0.5;
 
           ctx.save();
           
-          // 1. Aller au centre du canvas
-          ctx.translate(centerX, centerY);
+          // 1. Se positionner à la position animée de la tête
+          ctx.translate(headAnim.x, headAnim.y);
           
-          // 2. Appliquer le décalage de l'asset avec facteur d'échelle
+          // 2. Appliquer l'animation de la tête (rotation et échelle)
+          ctx.rotate(headAnim.rotation);
+          ctx.scale(headAnim.scale, headAnim.scale);
+          
+          // 3. Appliquer le décalage de l'asset (relatif à la tête)
           const scaledOffsetX = transform.offsetX * POSITION_SCALE_FACTOR;
           const scaledOffsetY = transform.offsetY * POSITION_SCALE_FACTOR;
           ctx.translate(scaledOffsetX, scaledOffsetY);
           
-          // DEBUG VISUEL: Dessiner un point rouge pour voir où est le centre transformé
-          ctx.fillStyle = 'red';
-          ctx.fillRect(-2, -2, 4, 4);
-          
-          // 3. Appliquer la rotation de l'asset (convertir degrés en radians)
+          // 4. Appliquer la rotation de l'asset
           ctx.rotate(transform.rotation * Math.PI / 180);
           
-          // 4. Appliquer l'échelle de l'asset avec facteur d'ajustement
+          // 5. Appliquer l'échelle de l'asset
           const scaledScale = transform.scale * SIZE_SCALE_FACTOR;
           ctx.scale(scaledScale, scaledScale);
           
-          // 5. Dessiner l'image centrée sur l'origine transformée
+          // 6. Dessiner l'image centrée
           const width = img.width || 50;
           const height = img.height || 50;
           ctx.drawImage(img, -width / 2, -height / 2, width, height);
-          
-          // DEBUG VISUEL: Dessiner un carré vert pour voir la zone de l'image
-          ctx.strokeStyle = 'lime';
-          ctx.lineWidth = 2;
-          ctx.strokeRect(-width / 2, -height / 2, width, height);
           
           ctx.restore();
         }
@@ -362,14 +341,6 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
     const audioData = getAudioDataAtTime(time);
 
     if (emotion) {
-      console.log('=== EMOTION DEBUG ===');
-      console.log('Emotion name:', emotion.name);
-      console.log('Full emotion assets:', emotion.assets);
-      console.log('Accessories:', emotion.assets?.accessories);
-      console.log('Face assets:', emotion.assets?.face);
-      console.log('Head assets:', emotion.assets?.head);
-      console.log('========================');
-      
       drawCharacterFromAssets(ctx, emotion, audioData, time);
     } else {
       // Dessiner un placeholder si pas d'émotion
