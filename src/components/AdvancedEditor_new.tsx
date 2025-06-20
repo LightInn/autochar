@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { emotionManager, type CustomEmotion } from '../utils/emotionManager';
+import { emotionManager, type CustomEmotion, type AnimationSettings } from '../utils/emotionManager';
 import { assetManager, type AssetFile } from '../utils/assetManager';
 import { audioAnalyzer, type AudioAnalysisData } from '../utils/audioAnalyzer';
 import AssetBasedRenderer from './AssetBasedRenderer';
@@ -425,7 +425,7 @@ const AdvancedEditor: React.FC<AdvancedEditorProps> = ({ onBackToMain, onSave })
                             {selectedEmotion.assets[category as keyof CustomEmotion['assets']] ? (
                               <div className="relative">
                                 <img
-                                  src={selectedEmotion.assets[category as keyof CustomEmotion['assets']] as string}
+                                  src={selectedEmotion.assets[category as keyof CustomEmotion['assets']]}
                                   alt={category}
                                   className="max-w-full max-h-12 object-contain"
                                 />

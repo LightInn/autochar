@@ -26,6 +26,7 @@ interface ExportSettings {
 
 const VideoExporter: React.FC<VideoExporterProps> = ({ 
   segments, 
+  audioFile,
   audioAnalysis = []
 }) => {
   const [isExporting, setIsExporting] = useState(false);
