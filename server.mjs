@@ -1,10 +1,13 @@
 import express from 'express';
 import multer from 'multer';
-import whisper from 'nodejs-whisper';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+const { nodewhisper } = require('nodejs-whisper');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -31,35 +34,57 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
-app.post('/transcribe', upload.single('audio'), async (req, res) => {
+app.post('/transcribe', upload.single('audio'), (req, res) => {
   if (!req.file) {
     return res.status(400).send('No file uploaded.');
   }
 
   const filePath = req.file.path;
 
-  try {
-    console.log(`Transcription for ${filePath}`);
-    const transcript = await whisper(filePath, {
-      modelName: 'large-v3-turbo', // or 'base', 'small', 'medium', 'large'
-      whisperOptions: {
-        language: 'fr',
-        word_timestamps: true,
-      },
-    });
+  // Setup Server-Sent Events
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
 
-    res.json({ transcript });
-  } catch (error) {
-    console.error('Error during transcription:', error);
-    res.status(500).send('Error during transcription.');
-  } finally {
-    // Clean up the uploaded file
-    fs.unlink(filePath, (err) => {
-      if (err) {
-        console.error(`Failed to delete file: ${filePath}`, err);
-      }
-    });
-  }
+  console.log(`Transcription for ${filePath} using SSE.`);
+
+  // Run transcription asynchronously
+  (async () => {
+    try {
+      const transcript = await nodewhisper(filePath, {
+        modelName: 'base', // Using a much faster model
+        whisperOptions: {
+          language: 'fr',
+          word_timestamps: true,
+        },
+      });
+
+      // Send the final result
+      res.write(`event: result\ndata: ${JSON.stringify(transcript)}\n\n`);
+
+    } catch (error) {
+      console.error('Error during transcription:', error);
+      res.write(`event: error\ndata: ${JSON.stringify({ message: 'Error during transcription' })}\n\n`);
+    } finally {
+      // End the connection
+      res.write(`event: done\ndata: Transcription finished\n\n`);
+      res.end();
+
+      // Clean up the uploaded file
+      fs.unlink(filePath, (err) => {
+        if (err) {
+          console.error(`Failed to delete file: ${filePath}`, err);
+        }
+      });
+    }
+  })();
+
+  // Handle client disconnect
+  req.on('close', () => {
+    console.log('Client disconnected.');
+    res.end();
+  });
 });
 
 app.listen(port, () => {
