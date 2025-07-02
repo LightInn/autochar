@@ -38,6 +38,9 @@ importers:
       tailwindcss:
         specifier: ^4.1.10
         version: 4.1.10
+      upng-js:
+        specifier: ^2.1.0
+        version: 2.1.0
     devDependencies:
       '@eslint/js':
         specifier: ^9.25.0
@@ -57,6 +60,9 @@ importers:
       '@types/react-dom':
         specifier: ^19.1.2
         version: 19.1.6(@types/react@19.1.8)
+      '@types/upng-js':
+        specifier: ^2.1.5
+        version: 2.1.5
       '@vitejs/plugin-react':
         specifier: ^4.4.1
         version: 4.5.2(vite@6.3.5(@types/node@24.0.3)(jiti@2.4.2)(lightningcss@1.30.1))
@@ -674,6 +680,9 @@ packages:
 
   '@types/serve-static@1.15.8':
     resolution: {integrity: sha512-roei0UY3LhpOJvjbIP6ZZFngyLKl5dskOtDhxY5THRSpO+ZI+nzJ+m5yUMzGrp89YRa7lvknKkMYjqQFGwA7Sg==}
+
+  '@types/upng-js@2.1.5':
+    resolution: {integrity: sha512-CzXg1lcCcWzrmYmke9BLbBPzb2DpdC1bXuXf0BtK3Bygvsozslei8S1bheDI1QUfZzZpMeQI5fywfnMj4CxocQ==}
 
   '@typescript-eslint/eslint-plugin@8.34.1':
     resolution: {integrity: sha512-STXcN6ebF6li4PxwNeFnqF8/2BNDvBupf2OPx2yWNzr6mKNGF7q49VM00Pz5FaomJyqvbXpY6PhO+T9w139YEQ==}
@@ -1721,6 +1730,9 @@ packages:
     peerDependencies:
       browserslist: '>= 4.21.0'
 
+  upng-js@2.1.0:
+    resolution: {integrity: sha512-d3xzZzpMP64YkjP5pr8gNyvBt7dLk/uGI67EctzDuVp4lCZyVMo0aJO6l/VDlgbInJYDY6cnClLoBp29eKWI6g==}
+
   uri-js@4.4.1:
     resolution: {integrity: sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg==}
 
@@ -2306,6 +2318,8 @@ snapshots:
       '@types/http-errors': 2.0.5
       '@types/node': 24.0.3
       '@types/send': 0.17.5
+
+  '@types/upng-js@2.1.5': {}
 
   '@typescript-eslint/eslint-plugin@8.34.1(@typescript-eslint/parser@8.34.1(eslint@9.29.0(jiti@2.4.2))(typescript@5.8.3))(eslint@9.29.0(jiti@2.4.2))(typescript@5.8.3)':
     dependencies:
@@ -3402,6 +3416,10 @@ snapshots:
       browserslist: 4.25.0
       escalade: 3.2.0
       picocolors: 1.1.1
+
+  upng-js@2.1.0:
+    dependencies:
+      pako: 1.0.11
 
   uri-js@4.4.1:
     dependencies:

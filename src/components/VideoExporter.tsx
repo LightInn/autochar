@@ -4,6 +4,7 @@ import type { CustomEmotion } from '../utils/emotionManager';
 import { AssetManager, type AssetFile } from '../utils/assetManager';
 import type { AudioAnalysisData } from '../utils/audioAnalyzer';
 import JSZip from 'jszip';
+import * as UPNG from 'upng-js';
 
 // Helper for 2D transformation matrices (a, b, c, d, e, f)
 type Matrix = { a: number; b: number; c: number; d: number; e: number; f: number };
@@ -73,6 +74,10 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
   const [isExportingPng, setIsExportingPng] = useState(false);
   const [pngExportProgress, setPngExportProgress] = useState(0);
   const [pngExportStatus, setPngExportStatus] = useState('');
+
+  const [isExportingApng, setIsExportingApng] = useState(false);
+  const [apngExportProgress, setApngExportProgress] = useState(0);
+  const [apngExportStatus, setApngExportStatus] = useState('');
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -722,6 +727,65 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
     }
   }, [segments, exportSettings, drawFrame]);
 
+  const startApngExport = useCallback(async () => {
+    const canvas = canvasRef.current;
+    if (!canvas || segments.length === 0) return;
+
+    setIsExportingApng(true);
+    setApngExportProgress(0);
+    setApngExportStatus('Initialisation de l\'export APNG...');
+
+    try {
+      const totalDuration = getTotalDuration();
+      const totalFrames = Math.ceil(totalDuration * exportSettings.fps);
+      const frameDelay = 1000 / exportSettings.fps;
+
+      const frameBuffers: ArrayBuffer[] = [];
+      const frameDelays: number[] = [];
+
+      setApngExportStatus(`Génération de ${totalFrames} images...`);
+
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (!ctx) {
+        throw new Error("Impossible d'obtenir le contexte 2D pour l'export APNG");
+      }
+
+      for (let frame = 0; frame < totalFrames; frame++) {
+        const time = frame / exportSettings.fps;
+        
+        drawFrame(time);
+        
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        frameBuffers.push(imageData.data.buffer);
+        frameDelays.push(frameDelay);
+
+        setApngExportProgress((frame / totalFrames) * 100);
+        if (frame % 10 === 0) {
+          await new Promise(resolve => setTimeout(resolve, 1));
+        }
+      }
+
+      setApngExportStatus('Encodage en APNG...');
+      const apngBlob = UPNG.encode(frameBuffers, canvas.width, canvas.height, 0, frameDelays);
+
+      const url = URL.createObjectURL(new Blob([apngBlob], { type: 'image/png' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `autochar-animation-${Date.now()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      setApngExportStatus('Export APNG terminé !');
+    } catch (error) {
+      console.error('Erreur durant l\'export APNG:', error);
+      setApngExportStatus(`Erreur: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
+    } finally {
+      setIsExportingApng(false);
+    }
+  }, [segments, exportSettings, drawFrame]);
+
 
   const stopExport = () => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
@@ -1080,10 +1144,16 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
             >
               🖼️ Exporter PNGs
             </button>
+            <button
+              onClick={startApngExport}
+              className="bg-pink-600 hover:bg-pink-500 text-white px-6 py-3 rounded-lg font-bold transition-colors flex items-center gap-2"
+            >
+              🌈 Exporter APNG
+            </button>
           </>
         )}
 
-        {(isExporting || isExportingPng) && (
+        {(isExporting || isExportingPng || isExportingApng) && (
           <div className="flex items-center gap-4 flex-1">
             <button
               onClick={stopExport} // Note: stopExport ne gère pas l'arrêt du PNG
