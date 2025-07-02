@@ -3,6 +3,7 @@ import type { EmotionSegment } from '../utils/intentionAnalyzer';
 import type { CustomEmotion } from '../utils/emotionManager';
 import { AssetManager, type AssetFile } from '../utils/assetManager';
 import type { AudioAnalysisData } from '../utils/audioAnalyzer';
+import JSZip from 'jszip';
 
 // Helper for 2D transformation matrices (a, b, c, d, e, f)
 type Matrix = { a: number; b: number; c: number; d: number; e: number; f: number };
@@ -40,7 +41,7 @@ interface ExportSettings {
   fps: number;
   backgroundColor: 'transparent' | 'white' | 'black' | 'green';
   quality: 'high' | 'medium' | 'low';
-  timingMethod: 'realtime' | 'precise' | 'manual';
+  timingMethod: 'precise' | 'manual';
   frameDelay: number;
 }
 
@@ -53,29 +54,33 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
   const [exportProgress, setExportProgress] = useState(0);
   const [exportStatus, setExportStatus] = useState('');
   const [exportedVideoUrl, setExportedVideoUrl] = useState<string | null>(null);
-  const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
-  const [previewTime, setPreviewTime] = useState(0);
+  const [transparencyWarning, setTransparencyWarning] = useState<string | null>(null);
+  const [allAssets, setAllAssets] = useState<AssetFile[]>([]);
+
   const [exportSettings, setExportSettings] = useState<ExportSettings>({
     width: 800,
     height: 600,
     fps: 30,
     backgroundColor: 'transparent',
     quality: 'high',
-    timingMethod: 'manual',
-    frameDelay: 0
+    timingMethod: 'precise',
+    frameDelay: 0, 
   });
-  const [allAssets, setAllAssets] = useState<AssetFile[]>([]);
 
-  // État pour les avertissements de transparence
-  const [transparencyWarning, setTransparencyWarning] = useState<string | null>(null);
+  const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
+  const [previewTime, setPreviewTime] = useState(0);
+
+  const [isExportingPng, setIsExportingPng] = useState(false);
+  const [pngExportProgress, setPngExportProgress] = useState(0);
+  const [pngExportStatus, setPngExportStatus] = useState('');
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const audioRef = useRef<HTMLAudioElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const loadedAssets = useRef<Map<string, HTMLImageElement>>(new Map());
   const assetManager = useRef(new AssetManager()).current;
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
   const activeSegmentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -351,13 +356,13 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
   };
 
   // Dessiner une frame
-  const drawFrame = useCallback((time: number) => {
+  const drawFrame = useCallback((time: number, onFrameDrawn?: () => void) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d', { 
       alpha: true,
-      willReadFrequently: false,
+      willReadFrequently: true, // Important pour toBlob
       colorSpace: 'srgb'
     });
     if (!ctx) return;
@@ -398,6 +403,9 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
       ctx.textAlign = 'center';
       ctx.fillText('Aucune émotion définie', canvas.width / 2, canvas.height / 2);
     }
+
+    // Callback pour signaler que le dessin est terminé
+    onFrameDrawn?.();
 
     // Debug info overlay disabled for video export
   }, [segments, exportSettings, audioAnalysis, allAssets, drawCharacterFromAssets]);
@@ -652,6 +660,68 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
       setIsExporting(false);
     }
   }, [segments, exportSettings, drawFrame]);
+
+  const startPngExport = useCallback(async () => {
+    const canvas = canvasRef.current;
+    if (!canvas || segments.length === 0) return;
+
+    setIsExportingPng(true);
+    setPngExportProgress(0);
+    setPngExportStatus('Initialisation de l\'export PNG...');
+
+    try {
+      const zip = new JSZip();
+      const totalDuration = getTotalDuration();
+      const totalFrames = Math.ceil(totalDuration * exportSettings.fps);
+
+      setPngExportStatus(`Génération de ${totalFrames} images...`);
+
+      for (let frame = 0; frame < totalFrames; frame++) {
+        const time = frame / exportSettings.fps;
+        
+        const blob = await new Promise<Blob | null>(resolve => {
+          drawFrame(time, () => {
+            canvas.toBlob(resolve, 'image/png');
+          });
+        });
+
+        if (blob) {
+          zip.file(`frame-${String(frame).padStart(5, '0')}.png`, blob);
+        }
+
+        setPngExportProgress((frame / totalFrames) * 100);
+        if (frame % 10 === 0) {
+          await new Promise(resolve => setTimeout(resolve, 1));
+        }
+      }
+
+      setPngExportStatus('Compression en ZIP...');
+      const zipBlob = await zip.generateAsync({ 
+        type: 'blob',
+        compression: "DEFLATE",
+        compressionOptions: {
+          level: 6
+        }
+      });
+
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `autochar-png-sequence-${Date.now()}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      setPngExportStatus('Export PNG terminé !');
+    } catch (error) {
+      console.error('Erreur durant l\'export PNG:', error);
+      setPngExportStatus(`Erreur: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
+    } finally {
+      setIsExportingPng(false);
+    }
+  }, [segments, exportSettings, drawFrame]);
+
 
   const stopExport = () => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
@@ -996,36 +1066,46 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
 
       {/* Boutons d'export */}
       <div className="flex items-center gap-4">
-        {!isExporting && !exportedVideoUrl && (
-          <button
-            onClick={startExport}
-            className="bg-green-600 hover:bg-green-500 text-white px-6 py-3 rounded-lg font-bold transition-colors flex items-center gap-2"
-          >
-            🎬 Commencer l'Export
-          </button>
+        {!isExporting && !exportedVideoUrl && !isExportingPng && (
+          <>
+            <button
+              onClick={startExport}
+              className="bg-green-600 hover:bg-green-500 text-white px-6 py-3 rounded-lg font-bold transition-colors flex items-center gap-2"
+            >
+              🎬 Exporter Vidéo
+            </button>
+            <button
+              onClick={startPngExport}
+              className="bg-purple-600 hover:bg-purple-500 text-white px-6 py-3 rounded-lg font-bold transition-colors flex items-center gap-2"
+            >
+              🖼️ Exporter PNGs
+            </button>
+          </>
         )}
 
-        {isExporting && (
+        {(isExporting || isExportingPng) && (
           <div className="flex items-center gap-4 flex-1">
             <button
-              onClick={stopExport}
+              onClick={stopExport} // Note: stopExport ne gère pas l'arrêt du PNG
               className="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded transition-colors"
+              disabled={isExportingPng} // Désactiver l'arrêt pour l'export PNG pour l'instant
             >
               ⏹️ Arrêter
             </button>
             <div className="flex-1">
               <div className="bg-gray-700 rounded-full h-4 overflow-hidden">
                 <div 
-                  className="bg-green-600 h-full transition-all duration-300"
-                  style={{ width: `${exportProgress}%` }}
+                  className="h-full transition-all duration-300 bg-gradient-to-r from-green-400 to-blue-500"
+                  style={{ width: `${isExporting ? exportProgress : pngExportProgress}%` }}
                 />
               </div>
-              <p className="text-sm text-gray-400 mt-1">{exportStatus}</p>
+              <p className="text-sm text-gray-400 mt-1">{isExporting ? exportStatus : pngExportStatus}</p>
             </div>
           </div>
         )}
 
-        {exportedVideoUrl && (
+
+        {exportedVideoUrl && !isExporting && !isExportingPng && (
           <div className="flex items-center gap-4">
             <button
               onClick={downloadVideo}
