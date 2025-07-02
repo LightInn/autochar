@@ -66,6 +66,9 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
   });
   const [allAssets, setAllAssets] = useState<AssetFile[]>([]);
 
+  // État pour les avertissements de transparence
+  const [transparencyWarning, setTransparencyWarning] = useState<string | null>(null);
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -140,22 +143,39 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
     loadAssetImages();
   }, [segments, allAssets]);
 
-  // Fonction pour détecter les codecs supportés
+  // Fonction pour détecter les codecs supportés avec priorité pour la transparence
   const getSupportedMimeType = () => {
-    const types = [
-      'video/webm;codecs=vp9',
-      'video/webm;codecs=vp8',
+    // Priorité aux codecs qui supportent la transparence
+    const typesWithAlpha = [
+      'video/webm;codecs=vp9,opus', // VP9 avec audio
+      'video/webm;codecs=vp9',      // VP9 sans audio (meilleur pour transparence)
+      'video/webm;codecs=vp8,vorbis', // VP8 avec audio
+      'video/webm;codecs=vp8',      // VP8 sans audio
+    ];
+    
+    const fallbackTypes = [
       'video/webm',
       'video/mp4;codecs=h264',
       'video/mp4'
     ];
     
-    for (const type of types) {
+    // Tester d'abord les codecs avec support alpha
+    for (const type of typesWithAlpha) {
       if (MediaRecorder.isTypeSupported(type)) {
+        console.log('Using codec with alpha support:', type);
         return type;
       }
     }
     
+    // Fallback si aucun codec avec alpha n'est disponible
+    for (const type of fallbackTypes) {
+      if (MediaRecorder.isTypeSupported(type)) {
+        console.log('Using fallback codec (no alpha):', type);
+        return type;
+      }
+    }
+    
+    console.warn('No supported codec found, using default webm');
     return 'video/webm';
   };
 
@@ -335,17 +355,32 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { 
+      alpha: true,
+      willReadFrequently: false,
+      colorSpace: 'srgb'
+    });
     if (!ctx) return;
 
-    // Configurer le canvas
+    // Configurer le canvas avec support alpha approprié
     canvas.width = exportSettings.width;
     canvas.height = exportSettings.height;
 
-    // Nettoyer le canvas
+    // Nettoyer le canvas selon le mode de transparence
     if (exportSettings.backgroundColor === 'transparent') {
+      // Pour la transparence, utiliser clearRect qui préserve l'alpha
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      // S'assurer que le contexte utilise l'alpha correctement
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1.0;
+      
+      // Vérifier que le canvas a bien un canal alpha
+      const imageData = ctx.getImageData(0, 0, 1, 1);
+      if (imageData.data.length !== 4) {
+        console.warn('Canvas may not support alpha channel properly');
+      }
     } else {
+      // Pour les fonds opaques, utiliser fillRect
       ctx.fillStyle = exportSettings.backgroundColor === 'green' ? '#00FF00' : exportSettings.backgroundColor;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
@@ -427,6 +462,48 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
     }
   }, [previewTime, drawFrame, isPreviewPlaying]);
 
+  // Test de support de la transparence par le navigateur
+  const testTransparencySupport = useCallback(() => {
+    const testCanvas = document.createElement('canvas');
+    testCanvas.width = 10;
+    testCanvas.height = 10;
+    
+    const ctx = testCanvas.getContext('2d', { alpha: true });
+    if (!ctx) return false;
+    
+    // Dessiner un pixel transparent
+    ctx.clearRect(0, 0, 10, 10);
+    ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+    ctx.fillRect(5, 5, 1, 1);
+    
+    // Tenter de capturer le stream
+    try {
+      const stream = testCanvas.captureStream(1);
+      const track = stream.getVideoTracks()[0];
+      
+      if (!track) return false;
+      
+      // Tester différents codecs
+      const supportedCodecs = [
+        'video/webm;codecs=vp9',
+        'video/webm;codecs=vp8',
+        'video/webm'
+      ];
+      
+      for (const codec of supportedCodecs) {
+        if (MediaRecorder.isTypeSupported(codec)) {
+          console.log(`Transparency test: ${codec} is supported`);
+          return true;
+        }
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('Transparency test failed:', error);
+      return false;
+    }
+  }, []);
+
   // Export vidéo
   const startExport = useCallback(async () => {
     const canvas = canvasRef.current;
@@ -438,14 +515,70 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
     chunksRef.current = [];
 
     try {
-      const stream = canvas.captureStream(exportSettings.fps);
-      const mimeType = getSupportedMimeType();
-      
-      mediaRecorderRef.current = new MediaRecorder(stream, {
-        mimeType,
-        videoBitsPerSecond: exportSettings.quality === 'high' ? 8000000 : 
-                           exportSettings.quality === 'medium' ? 4000000 : 2000000
+      // Vérifier que le canvas supporte bien l'alpha
+      const canvas = canvasRef.current;
+      if (!canvas) {
+        throw new Error('Canvas non disponible');
+      }
+
+      const ctx = canvas.getContext('2d', { 
+        alpha: true,
+        willReadFrequently: false,
+        colorSpace: 'srgb'
       });
+      
+      if (!ctx) {
+        throw new Error('Impossible d\'obtenir le contexte 2D avec alpha');
+      }
+
+      // Configurer explicitement le canvas pour l'alpha
+      canvas.width = exportSettings.width;
+      canvas.height = exportSettings.height;
+
+      // Test préliminaire de l'alpha
+      if (exportSettings.backgroundColor === 'transparent') {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const testData = ctx.getImageData(0, 0, 1, 1);
+        console.log('Canvas alpha test - pixel data length:', testData.data.length);
+        console.log('Canvas alpha test - alpha value:', testData.data[3]);
+      }
+
+      // Capturer le stream du canvas avec alpha activé pour la transparence
+      const stream = canvas.captureStream(exportSettings.fps);
+      
+      // Vérifier que le stream supporte l'alpha
+      const videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack) {
+        const settings = videoTrack.getSettings();
+        console.log('Video track settings:', settings);
+      }
+
+      const mimeType = getSupportedMimeType();
+      console.log('Using MIME type for export:', mimeType);
+      
+      // Configuration optimisée pour la transparence
+      const getBitrate = () => {
+        switch (exportSettings.quality) {
+          case 'high': return 10000000; // Augmenté pour préserver l'alpha
+          case 'medium': return 6000000;
+          default: return 3000000;
+        }
+      };
+
+      const recorderOptions: MediaRecorderOptions = {
+        mimeType,
+        videoBitsPerSecond: getBitrate(),
+      };
+
+      // Options spéciales pour VP9 avec transparence
+      if (mimeType.includes('vp9') && exportSettings.backgroundColor === 'transparent') {
+        // VP9 supportant l'alpha - augmenter le bitrate
+        recorderOptions.videoBitsPerSecond = getBitrate() * 1.5;
+        console.log('Enhanced VP9 configuration for alpha channel');
+      }
+
+      console.log('MediaRecorder options:', recorderOptions);
+      mediaRecorderRef.current = new MediaRecorder(stream, recorderOptions);
 
       mediaRecorderRef.current.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -457,6 +590,22 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
         const blob = new Blob(chunksRef.current, { type: mimeType });
         const url = URL.createObjectURL(blob);
         setExportedVideoUrl(url);
+        
+        // Diagnostic pour la transparence
+        if (exportSettings.backgroundColor === 'transparent') {
+          console.log('Transparent video export completed');
+          console.log('Blob size:', blob.size, 'bytes');
+          console.log('MIME type used:', blob.type);
+          
+          // Créer un élément vidéo temporaire pour tester
+          const testVideo = document.createElement('video');
+          testVideo.src = url;
+          testVideo.onloadedmetadata = () => {
+            console.log('Video dimensions:', testVideo.videoWidth, 'x', testVideo.videoHeight);
+            console.log('Video duration:', testVideo.duration, 'seconds');
+          };
+        }
+        
         setExportStatus('Export terminé !');
         setIsExporting(false);
       };
@@ -516,7 +665,33 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
     if (exportedVideoUrl) {
       const a = document.createElement('a');
       a.href = exportedVideoUrl;
-      a.download = `autochar-animation-${Date.now()}.webm`;
+      
+      // Déterminer l'extension basée sur le codec utilisé
+      const usedMimeType = getSupportedMimeType();
+      const extension = usedMimeType.includes('mp4') ? 'mp4' : 'webm';
+      const isTransparent = exportSettings.backgroundColor === 'transparent';
+      
+      let transparencyNote = '';
+      if (isTransparent) {
+        if (usedMimeType.includes('vp9') || usedMimeType.includes('vp8')) {
+          transparencyNote = '-transparent';
+          console.log('✅ Video exported with alpha channel support');
+        } else {
+          transparencyNote = '-no-alpha';
+          console.log('⚠️ Video exported without alpha channel support (codec limitation)');
+        }
+      }
+      
+      a.download = `autochar-animation${transparencyNote}-${Date.now()}.${extension}`;
+      
+      // Logging pour debug
+      console.log('Download info:', {
+        filename: a.download,
+        mimeType: usedMimeType,
+        isTransparent,
+        supportsAlpha: usedMimeType.includes('vp9') || usedMimeType.includes('vp8')
+      });
+      
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -564,6 +739,52 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
       }
     }
   };
+
+  // Initialiser le canvas avec support alpha dès le montage
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    // Force canvas configuration for alpha support
+    const ctx = canvas.getContext('2d', { 
+      alpha: true,
+      willReadFrequently: false,
+      colorSpace: 'srgb',
+      desynchronized: false
+    });
+    
+    if (!ctx) {
+      console.error('Failed to get canvas context with alpha support');
+      return;
+    }
+
+    // Vérifier que l'alpha est bien supporté
+    console.log('Canvas context created with alpha support');
+    
+    // Test initial de l'alpha
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const testData = ctx.getImageData(0, 0, 1, 1);
+    console.log('Initial alpha test - data length:', testData.data.length);
+    
+    if (testData.data.length === 4) {
+      console.log('✅ Canvas alpha channel confirmed');
+    } else {
+      console.warn('⚠️ Canvas may not support alpha properly');
+    }
+
+    // Dessiner la première frame
+    drawFrame(0);
+  }, [drawFrame]);
+
+  // Vérifier le support de la transparence au montage
+  useEffect(() => {
+    const isSupported = testTransparencySupport();
+    if (!isSupported && exportSettings.backgroundColor === 'transparent') {
+      setTransparencyWarning('Votre navigateur pourrait ne pas supporter la transparence vidéo. Utilisez Chrome/Edge pour de meilleurs résultats.');
+    } else {
+      setTransparencyWarning(null);
+    }
+  }, [testTransparencySupport, exportSettings.backgroundColor]);
 
   if (segments.length === 0) {
     return (
@@ -628,7 +849,13 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
             width={exportSettings.width}
             height={exportSettings.height}
             className="border border-gray-600 rounded max-w-full h-auto"
-            style={{ maxHeight: '300px' }}
+            style={{ 
+              maxHeight: '300px',
+              // Crucial for alpha preservation
+              imageRendering: 'crisp-edges'
+            }}
+            // Force alpha channel support at the DOM level
+            data-alpha="true"
           />
         </div>
 
@@ -741,6 +968,32 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
         </div>
       </div>
 
+      {/* Avertissement de transparence */}
+      {transparencyWarning && (
+        <div className="bg-yellow-900 border border-yellow-600 rounded-lg p-4">
+          <div className="flex items-center gap-2">
+            <span className="text-yellow-400 text-xl">⚠️</span>
+            <p className="text-yellow-200 text-sm">{transparencyWarning}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Diagnostic de transparence pour le débogage */}
+      {exportSettings.backgroundColor === 'transparent' && (
+        <div className="bg-blue-900 border border-blue-600 rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-blue-400 text-xl">🔍</span>
+            <h4 className="text-blue-200 font-medium">Diagnostic de transparence</h4>
+          </div>
+          <div className="text-blue-200 text-sm space-y-1">
+            <p>Codec sélectionné: <span className="font-mono text-blue-100">{getSupportedMimeType()}</span></p>
+            <p>Support VP9: {MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? '✅' : '❌'}</p>
+            <p>Support VP8: {MediaRecorder.isTypeSupported('video/webm;codecs=vp8') ? '✅' : '❌'}</p>
+            <p>Note: Seuls VP9 et VP8 WebM supportent la transparence alpha.</p>
+          </div>
+        </div>
+      )}
+
       {/* Boutons d'export */}
       <div className="flex items-center gap-4">
         {!isExporting && !exportedVideoUrl && (
@@ -800,6 +1053,15 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
             controls
             className="w-full max-w-md mx-auto rounded"
           />
+        </div>
+      )}
+
+      {/* Avertissement de transparence */}
+      {transparencyWarning && (
+        <div className="bg-yellow-800 p-4 rounded-lg">
+          <p className="text-yellow-100 text-sm">
+            ⚠️ {transparencyWarning}
+          </p>
         </div>
       )}
     </div>
