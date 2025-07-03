@@ -79,43 +79,93 @@ const EMOTION_PATTERNS = {
   }
 };
 
-// Analyse d'un segment de texte
-function analyzeTextSegment(text: string): { emotion: EmotionType; intensity: number; confidence: number; triggers: string[] } {
+// Helper functions to reduce complexity
+function getPatternTriggerName(pattern: RegExp): string {
+  const source = pattern.source;
+  if (source.includes('ha')) return 'rire';
+  if (source.includes('hmm')) return 'réflexion';
+  if (source.includes('oh')) return 'surprise';
+  if (source.includes('grr')) return 'grognement';
+  if (source.includes('euh')) return 'hésitation';
+  if (source.includes('snif')) return 'pleurs';
+  return 'expression';
+}
+
+function getPunctuationTriggerName(punct: string): string {
+  switch (punct) {
+    case '!': return 'exclamation';
+    case '?': return 'question';
+    case '...': return 'pause';
+    case '!!': return 'forte exclamation';
+    case '!!!': return 'très forte exclamation';
+    case '?!': return 'surprise interrogative';
+    default: return 'ponctuation';
+  }
+}
+
+function analyzeKeywords(text: string, keywords: string[]): { score: number; triggers: string[] } {
   const lowerText = text.toLowerCase();
+  let score = 0;
+  const triggers: string[] = [];
+  
+  for (const keyword of keywords) {
+    if (lowerText.includes(keyword)) {
+      score += 1;
+      triggers.push(keyword);
+    }
+  }
+  
+  return { score, triggers };
+}
+
+function analyzePatterns(text: string, patterns: RegExp[]): { score: number; triggers: string[] } {
+  let score = 0;
+  const triggers: string[] = [];
+  
+  for (const pattern of patterns) {
+    if (pattern.test(text)) {
+      score += 1.5; // Les patterns valent plus
+      triggers.push(getPatternTriggerName(pattern));
+    }
+  }
+  
+  return { score, triggers };
+}
+
+function analyzePunctuation(text: string, punctuation: string[]): { score: number; triggers: string[] } {
+  let score = 0;
+  const triggers: string[] = [];
+  
+  for (const punct of punctuation) {
+    if (text.includes(punct)) {
+      score += 0.5;
+      triggers.push(getPunctuationTriggerName(punct));
+    }
+  }
+  
+  return { score, triggers };
+}
+
+// Analyse d'un segment de texte (refactorisée pour réduire la complexité)
+function analyzeTextSegment(text: string): { emotion: EmotionType; intensity: number; confidence: number; triggers: string[] } {
   const results: Array<{ emotion: EmotionType; score: number; triggers: string[] }> = [];
 
   // Test chaque émotion
   for (const [emotionKey, config] of Object.entries(EMOTION_PATTERNS)) {
     const emotion = emotionKey as EmotionType;
-    let score = 0;
-    const triggers: string[] = [];
+    let totalScore = 0;
+    const allTriggers: string[] = [];
 
-    // Test des mots-clés
-    for (const keyword of config.keywords) {
-      if (lowerText.includes(keyword)) {
-        score += 1;
-        triggers.push(keyword);
-      }
-    }
+    // Analyser chaque type de déclencheur
+    const keywordAnalysis = analyzeKeywords(text, config.keywords);
+    const patternAnalysis = analyzePatterns(text, config.patterns);
+    const punctAnalysis = analyzePunctuation(text, config.punctuation);
 
-    // Test des patterns regex
-    for (const pattern of config.patterns) {
-      if (pattern.test(text)) {
-        score += 1.5; // Les patterns valent plus
-        triggers.push(`pattern:${pattern.source}`);
-      }
-    }
+    totalScore = keywordAnalysis.score + patternAnalysis.score + punctAnalysis.score;
+    allTriggers.push(...keywordAnalysis.triggers, ...patternAnalysis.triggers, ...punctAnalysis.triggers);
 
-    // Test de la ponctuation
-    for (const punct of config.punctuation) {
-      if (text.includes(punct)) {
-        score += 0.5;
-        triggers.push(`punct:${punct}`);
-      }
-    }
-
-    if (score > 0) {
-      results.push({ emotion, score, triggers });
+    if (totalScore > 0) {
+      results.push({ emotion, score: totalScore, triggers: allTriggers });
     }
   }
 

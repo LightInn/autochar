@@ -1,0 +1,172 @@
+name: Build and Release Electron App
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+          
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+          
+      - name: Setup pnpm cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+            
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        
+      - name: Install binary dependencies
+        run: |
+          echo "Installing binary dependencies..."
+          node install-binaries.mjs
+          
+      - name: Verify setup
+        run: |
+          echo "Verifying required components..."
+          node verify-setup.mjs
+          
+      - name: Check for whisper binary
+        run: |
+          echo "Checking for whisper binary..."
+          ls -la app/resources || true
+          ls -la app/models || true
+          
+      - name: Approve build scripts (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: echo "electron" | pnpm approve-builds
+        
+      - name: Build application
+        run: pnpm run build
+        
+      - name: Build Electron app (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: pnpm run electron:build --linux
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
+      - name: Build Electron app (Windows)
+        if: matrix.os == 'windows-latest'
+        run: pnpm run electron:build --win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
+      - name: Check release directory (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          echo "Release directory contents:"
+          ls -la release || true
+          echo "Checking for AppImage:"
+          find release -name "*.AppImage" || true
+          
+      - name: Check release directory (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          echo "Release directory contents:"
+          dir release || true
+          echo "Checking for exe:"
+          dir release /s /b | findstr ".exe" || true
+        
+      - name: Upload Linux artifacts
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-build
+          path: release/*.AppImage
+          if-no-files-found: error
+          
+      - name: Upload Windows artifacts
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: release/*.exe
+          if-no-files-found: error
+          
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Download Linux artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-build
+          path: ./linux-builds
+          
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-build
+          path: ./windows-builds
+          
+      - name: List downloaded artifacts
+        run: |
+          echo "Linux builds:"
+          ls -la ./linux-builds || true
+          echo "Windows builds:"
+          ls -la ./windows-builds || true
+          
+      - name: Create Tag Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ./linux-builds/*
+            ./windows-builds/*
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Create Latest Release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "AutoChar Studio (Latest)"
+          tag_name: latest
+          files: |
+            ./linux-builds/*
+            ./windows-builds/*
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,7 +1,7 @@
-import React, { useRef, useEffect, useState } from 'react';
-import { type CustomEmotion } from '../utils/emotionManager';
-import { AssetManager, type AssetFile } from '../utils/assetManager';
-import { type AudioAnalysisData } from '../utils/audioAnalyzer';
+import React, { useEffect, useRef, useState } from 'react';
+import { type CustomEmotion } from '../../utils/emotionManager';
+import { AssetManager, type AssetFile } from '../../utils/assetManager';
+import { type AudioAnalysisData } from '../../utils/audioAnalyzer';
 
 interface AssetBasedRendererProps {
   emotion: CustomEmotion;
