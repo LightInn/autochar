@@ -1,8 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { EmotionManager } from '../utils/emotionManager';
 import { AssetManager, type AssetFile } from '../utils/assetManager';
-import StickmanViewer from './StickmanViewer';
-import CanvasPreview from './CanvasPreview';
+import CanvasPreview from '../components/renderer/CanvasPreview';
 
 type TabType = 'emotions' | 'sets' | 'assets';
 

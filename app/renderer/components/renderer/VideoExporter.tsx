@@ -1,29 +1,30 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import type { EmotionSegment } from '../utils/intentionAnalyzer';
-import type { CustomEmotion } from '../utils/emotionManager';
-import { AssetManager, type AssetFile } from '../utils/assetManager';
-import type { AudioAnalysisData } from '../utils/audioAnalyzer';
+import type { EmotionSegment } from '../../utils/intentionAnalyzer';
+import type { CustomEmotion } from '../../utils/emotionManager';
+import { AssetManager, type AssetFile } from '../../utils/assetManager';
+import type { AudioAnalysisData } from '../../utils/audioAnalyzer';
 import JSZip from 'jszip';
 import * as UPNG from 'upng-js';
 
-// Helper for 2D transformation matrices (a, b, c, d, e, f)
-type Matrix = { a: number; b: number; c: number; d: number; e: number; f: number };
-const identityMatrix = (): Matrix => ({ a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 });
-const multiplyMatrices = (m1: Matrix, m2: Matrix): Matrix => ({
-  a: m1.a * m2.a + m1.c * m2.b,
-  b: m1.b * m2.a + m1.d * m2.b,
-  c: m1.a * m2.c + m1.c * m2.d,
-  d: m1.b * m2.c + m1.d * m2.d,
-  e: m1.a * m2.e + m1.c * m2.f + m1.e,
-  f: m1.b * m2.e + m1.d * m2.f + m1.f,
-});
-const translateMatrix = (m: Matrix, tx: number, ty: number): Matrix => multiplyMatrices(m, { a: 1, b: 0, c: 0, d: 1, e: tx, f: ty });
-const rotateMatrix = (m: Matrix, rad: number): Matrix => {
-  const cos = Math.cos(rad);
-  const sin = Math.sin(rad);
-  return multiplyMatrices(m, { a: cos, b: sin, c: -sin, d: cos, e: 0, f: 0 });
-};
-const scaleMatrix = (m: Matrix, sx: number, sy: number): Matrix => multiplyMatrices(m, { a: sx, b: 0, c: 0, d: sy, e: 0, f: 0 });
+// Helper for 2D transformation matrices (future feature)
+// type Matrix = { a: number; b: number; c: number; d: number; e: number; f: number };
+// TODO: Matrix functions for future transformation features
+// const identityMatrix = (): Matrix => ({ a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 });
+// const multiplyMatrices = (m1: Matrix, m2: Matrix): Matrix => ({
+//   a: m1.a * m2.a + m1.c * m2.b,
+//   b: m1.b * m2.a + m1.d * m2.b,
+//   c: m1.a * m2.c + m1.c * m2.d,
+//   d: m1.b * m2.c + m1.d * m2.d,
+//   e: m1.a * m2.e + m1.c * m2.f + m1.e,
+//   f: m1.b * m2.e + m1.d * m2.f + m1.f,
+// });
+// const translateMatrix = (m: Matrix, tx: number, ty: number): Matrix => multiplyMatrices(m, { a: 1, b: 0, c: 0, d: 1, e: tx, f: ty });
+// const rotateMatrix = (m: Matrix, rad: number): Matrix => {
+//   const cos = Math.cos(rad);
+//   const sin = Math.sin(rad);
+//   return multiplyMatrices(m, { a: cos, b: sin, c: -sin, d: cos, e: 0, f: 0 });
+// };
+// const scaleMatrix = (m: Matrix, sx: number, sy: number): Matrix => multiplyMatrices(m, { a: sx, b: 0, c: 0, d: sy, e: 0, f: 0 });
 
 // Extension du type EmotionSegment pour inclure l'émotion personnalisée
 interface ExtendedEmotionSegment extends EmotionSegment {
@@ -76,8 +77,8 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
   const [pngExportStatus, setPngExportStatus] = useState('');
 
   const [isExportingApng, setIsExportingApng] = useState(false);
-  const [apngExportProgress, setApngExportProgress] = useState(0);
-  const [apngExportStatus, setApngExportStatus] = useState('');
+  const [_apngExportProgress, _setApngExportProgress] = useState(0);
+  const [_apngExportStatus, _setApngExportStatus] = useState('');
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -732,8 +733,8 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
     if (!canvas || segments.length === 0) return;
 
     setIsExportingApng(true);
-    setApngExportProgress(0);
-    setApngExportStatus('Initialisation de l\'export APNG...');
+    _setApngExportProgress(0);
+    _setApngExportStatus('Initialisation de l\'export APNG...');
 
     try {
       const totalDuration = getTotalDuration();
@@ -743,7 +744,7 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
       const frameBuffers: ArrayBuffer[] = [];
       const frameDelays: number[] = [];
 
-      setApngExportStatus(`Génération de ${totalFrames} images...`);
+      _setApngExportStatus(`Génération de ${totalFrames} images...`);
 
       const ctx = canvas.getContext('2d', { willReadFrequently: true });
       if (!ctx) {
@@ -759,13 +760,13 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
         frameBuffers.push(imageData.data.buffer);
         frameDelays.push(frameDelay);
 
-        setApngExportProgress((frame / totalFrames) * 100);
+        _setApngExportProgress((frame / totalFrames) * 100);
         if (frame % 10 === 0) {
           await new Promise(resolve => setTimeout(resolve, 1));
         }
       }
 
-      setApngExportStatus('Encodage en APNG...');
+      _setApngExportStatus('Encodage en APNG...');
       const apngBlob = UPNG.encode(frameBuffers, canvas.width, canvas.height, 0, frameDelays);
 
       const url = URL.createObjectURL(new Blob([apngBlob], { type: 'image/png' }));
@@ -777,10 +778,10 @@ const VideoExporter: React.FC<VideoExporterProps> = ({
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      setApngExportStatus('Export APNG terminé !');
+      _setApngExportStatus('Export APNG terminé !');
     } catch (error) {
       console.error('Erreur durant l\'export APNG:', error);
-      setApngExportStatus(`Erreur: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
+      _setApngExportStatus(`Erreur: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
     } finally {
       setIsExportingApng(false);
     }

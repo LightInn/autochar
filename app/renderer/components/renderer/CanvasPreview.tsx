@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useCallback } from 'react';
-import type { AssetFile } from '../utils/assetManager';
-import type { CustomEmotion } from '../utils/emotionManager';
+import type { AssetFile } from '../../utils/assetManager';
+import type { CustomEmotion } from '../../utils/emotionManager';
 
 interface CanvasPreviewProps {
   width: number;

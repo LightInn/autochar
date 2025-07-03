@@ -1,38 +1,45 @@
-import { useState, useEffect } from "react";
-import "./App.css";
-import { analyzeIntention } from "./utils/intentionAnalyzer";
-import type { EmotionSegment } from "./utils/intentionAnalyzer";
-import { emotionManager, type CustomEmotion } from "./utils/emotionManager";
-import { audioAnalyzer, type AudioAnalysisData } from "./utils/audioAnalyzer";
-import AdvancedEditor from "./components/AdvancedEditor";
-import VideoExporter from "./components/VideoExporter";
+import { useState } from "react";
+import "../App.css";
+import type { EmotionSegment } from "../utils/intentionAnalyzer";
+import { type CustomEmotion } from "../utils/emotionManager";
+import { audioAnalyzer, type AudioAnalysisData } from "../utils/audioAnalyzer";
 
 // Extension du type EmotionSegment pour inclure l'émotion personnalisée
 interface ExtendedEmotionSegment extends EmotionSegment {
   customEmotion?: CustomEmotion;
 }
 
-function App() {
-  const [file, setFile] = useState<File | null>(null);
-  const [transcript, setTranscript] = useState<any>(null);
-  const [intentionAnalysis, setIntentionAnalysis] = useState<ExtendedEmotionSegment[]>([]);
+interface MainPageProps {
+  setCurrentPage: (page: 'main' | 'editor' | 'preview') => void;
+  setIntentionAnalysis: (analysis: ExtendedEmotionSegment[]) => void;
+  setAudioAnalysis: (analysis: AudioAnalysisData[]) => void;
+  setFile: (file: File | null) => void;
+  file: File | null;
+  transcript: any;
+  setTranscript: (transcript: any) => void;
+  intentionAnalysis: ExtendedEmotionSegment[];
+  emotions: CustomEmotion[];
+  selectedEmotion: CustomEmotion | null;
+  setSelectedEmotion: (emotion: CustomEmotion | null) => void;
+}
+
+function MainPage({ 
+  setCurrentPage,
+  setIntentionAnalysis,
+  setAudioAnalysis,
+  setFile,
+  file,
+  transcript,
+  setTranscript,
+  intentionAnalysis,
+  emotions,
+  selectedEmotion,
+  setSelectedEmotion
+}: Readonly<MainPageProps>) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [transcriptionStatus, setTranscriptionStatus] = useState('');
-  const [currentPage, setCurrentPage] = useState<'main' | 'editor' | 'preview'>('main');
-  const [emotions, setEmotions] = useState<CustomEmotion[]>([]);
-  const [audioAnalysis, setAudioAnalysis] = useState<AudioAnalysisData[]>([]);
-  const [selectedEmotion, setSelectedEmotion] = useState<CustomEmotion | null>(null);
   const [isTranscriptionExpanded, setIsTranscriptionExpanded] = useState(false);
-
-  // Charger les émotions au démarrage
-  useEffect(() => {
-    const loadedEmotions = emotionManager.getAllEmotions();
-    setEmotions(loadedEmotions);
-    if (loadedEmotions.length > 0) {
-      setSelectedEmotion(loadedEmotions[0]);
-    }
-  }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -66,7 +73,7 @@ function App() {
         console.error('Erreur analyse audio:', err);
       });
 
-      const response = await fetch("http://localhost:3001/transcribe", {
+      const response = await fetch("http://localhost:3001/api/transcribe", {
         method: "POST",
         body: formData,
       });
@@ -75,65 +82,25 @@ function App() {
         throw new Error(`Server error: ${response.statusText}`);
       }
 
-      // Handle SSE stream
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('Failed to get response reader.');
-      }
+      const result = await response.json();
+      
+      // Set the transcription result
+      setTranscript(result.transcription);
+      setTranscriptionStatus('Transcription completed. Analyzing intentions...');
 
-      const decoder = new TextDecoder();
-      setTranscriptionStatus('Transcription in progress...');
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) {
-          break;
-        }
-
-        const chunk = decoder.decode(value);
-        const events = chunk.split('\n\n').filter(event => event.trim());
-
-        for (const event of events) {
-          const lines = event.split('\n');
-          const eventType = lines.find(line => line.startsWith('event:'))?.replace('event: ', '');
-          const dataLine = lines.find(line => line.startsWith('data:'))?.replace('data: ', '');
-
-          if (!eventType || !dataLine) continue;
-
-          try {
-            if (eventType === 'result') {
-              const result = JSON.parse(dataLine);
-              setTranscript(result);
-              setTranscriptionStatus('Transcription complete!');
-              
-              // Analyser l'intention avec le nouveau système d'émotions
-              if (result.transcription && Array.isArray(result.transcription)) {
-                console.log('Analyzing intention for segments:', result.transcription);
-                const analysis = analyzeIntention(result.transcription);
-                
-                // Mapper les émotions avec le nouveau système
-                const mappedAnalysis: ExtendedEmotionSegment[] = analysis.map(segment => ({
-                  ...segment,
-                  customEmotion: emotions.find(e => e.name === segment.emotion) || emotions[0]
-                }));
-                
-                console.log('Intention analysis result:', mappedAnalysis);
-                setIntentionAnalysis(mappedAnalysis);
-              }
-            } else if (eventType === 'error') {
-              const errorResult = JSON.parse(dataLine);
-              setError(errorResult.message || 'An unknown error occurred.');
-              setTranscriptionStatus('An error occurred.');
-            } else if (eventType === 'done') {
-              setIsLoading(false);
-              reader.cancel();
-              return;
-            }
-          } catch (parseError) {
-            console.error('Failed to parse SSE data:', parseError, 'Data:', dataLine);
-          }
-        }
-      }
+      // For now, create a simple segment analysis since we have plain text
+      // We can improve this later to use actual timestamps from whisper
+      const simpleSegment = {
+        start: 0,
+        end: 10, // Default duration
+        text: result.transcription,
+        emotion: 'neutral' as const,
+        intensity: 0.5,
+        confidence: 0.8,
+        triggers: []
+      };
+      setIntentionAnalysis([simpleSegment]);
+      setTranscriptionStatus('Analysis completed!');
 
     } catch (err: any) {
       setError(err.message);
@@ -142,129 +109,6 @@ function App() {
       setIsLoading(false);
     }
   };
-
-  // Si on est sur l'éditeur, afficher cette page
-  if (currentPage === 'editor') {
-    return (
-      <AdvancedEditor
-        onBackToMain={() => setCurrentPage('main')}
-        onSave={(savedEmotions) => {
-          setEmotions(savedEmotions);
-          setCurrentPage('main');
-        }}
-      />
-    );
-  }
-
-  // Si on est sur la preview, afficher la preview avec le nouveau système
-  if (currentPage === 'preview' && selectedEmotion) {
-    return (
-      <div className="min-h-screen bg-gray-900">
-        <div className="bg-gray-800 border-b border-gray-700">
-          <div className="max-w-7xl mx-auto px-4 py-4">
-            <div className="flex items-center justify-between">
-              <h1 className="text-2xl font-bold text-white">🎭 Preview Animation</h1>
-              <button
-                onClick={() => setCurrentPage('main')}
-                className="bg-gray-600 hover:bg-gray-500 text-white px-4 py-2 rounded-lg transition-colors"
-              >
-                ← Retour
-              </button>
-            </div>
-          </div>
-        </div>
-        <div className="p-8">
-          <div className="max-w-4xl mx-auto">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <div className="bg-gray-800 p-6 rounded-lg">
-                <h3 className="text-xl font-bold text-white mb-4">📊 Informations de Séquence</h3>
-                
-                {/* Informations générales */}
-                <div className="space-y-4">
-                  <div className="bg-gray-700 rounded p-4">
-                    <h4 className="font-semibold text-white mb-2">Séquence Globale</h4>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-gray-300">Durée totale:</span>
-                        <span className="text-white">{intentionAnalysis.length > 0 ? Math.max(...intentionAnalysis.map(s => s.end)).toFixed(1) : 0}s</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-300">Segments:</span>
-                        <span className="text-white">{intentionAnalysis.length}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-300">Émotions uniques:</span>
-                        <span className="text-white">{new Set(intentionAnalysis.map(s => s.emotion)).size}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Liste des segments */}
-                  <div className="bg-gray-700 rounded p-4">
-                    <h4 className="font-semibold text-white mb-2">Segments d'Émotions</h4>
-                    <div className="max-h-64 overflow-y-auto space-y-2">
-                      {intentionAnalysis.map((segment, index) => (
-                        <div key={index} className="bg-gray-600 rounded p-3">
-                          <div className="flex justify-between items-start mb-2">
-                            <span className="font-medium text-white">{segment.emotion}</span>
-                            <span className="text-xs text-gray-300">
-                              {segment.start.toFixed(1)}s - {segment.end.toFixed(1)}s
-                            </span>
-                          </div>
-                          <div className="text-sm text-gray-300 italic">
-                            "{segment.text}"
-                          </div>
-                          <div className="mt-2 flex items-center gap-2">
-                            <div 
-                              className="w-3 h-3 rounded"
-                              style={{ backgroundColor: segment.customEmotion?.color || '#6B7280' }}
-                            ></div>
-                            <span className="text-xs text-gray-400">
-                              {segment.customEmotion?.displayName || segment.emotion}
-                            </span>
-                            <span className="text-xs text-gray-500">
-                              ({Object.values(segment.customEmotion?.assets || {}).flat().length} assets)
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Statistiques audio */}
-                  {audioAnalysis.length > 0 && (
-                    <div className="bg-gray-700 rounded p-4">
-                      <h4 className="font-semibold text-white mb-2">Analyse Audio</h4>
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-gray-300">Points d'analyse:</span>
-                          <span className="text-white">{audioAnalysis.length}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-300">Volume moyen:</span>
-                          <span className="text-white">
-                            {(audioAnalysis.reduce((acc, curr) => acc + curr.volume, 0) / audioAnalysis.length * 100).toFixed(1)}%
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="bg-gray-800 p-6 rounded-lg">
-                <h3 className="text-xl font-bold text-white mb-4">Export Vidéo</h3>
-                <VideoExporter 
-                  segments={intentionAnalysis}
-                  audioFile={file}
-                  audioAnalysis={audioAnalysis}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <>
@@ -360,9 +204,10 @@ function App() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {emotions.map((emotion) => (
-                  <div 
+                  <button 
                     key={emotion.id}
-                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                    type="button"
+                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all text-left ${
                       selectedEmotion?.id === emotion.id 
                         ? 'border-blue-500 bg-blue-900/30' 
                         : 'border-gray-600 bg-gray-700/30 hover:border-gray-500'
@@ -384,7 +229,7 @@ function App() {
                         </span>
                       ))}
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
@@ -460,7 +305,7 @@ function App() {
                 >
                   {isTranscriptionExpanded ? '▼ Masquer' : '▶ Afficher'}
                   <span className="text-sm text-gray-400">
-                    ({transcript.transcription?.length || 1} segment{transcript.transcription?.length > 1 ? 's' : ''})
+                    ({transcript.transcription?.length ?? 1} segment{transcript.transcription?.length > 1 ? 's' : ''})
                   </span>
                 </button>
               </div>
@@ -469,8 +314,8 @@ function App() {
                 <>
                   {transcript.transcription ? (
                     <div className="text-left space-y-2 mb-6">
-                      {transcript.transcription.map((segment: any, index: number) => (
-                        <div key={index} className="flex items-start space-x-3 py-2 border-b border-gray-700">
+                      {transcript.transcription.map((segment: any) => (
+                        <div key={`${segment.timestamps.from}-${segment.text}`} className="flex items-start space-x-3 py-2 border-b border-gray-700">
                           <span className="text-blue-400 text-sm font-mono min-w-[100px]">
                             {segment.timestamps.from}
                           </span>
@@ -482,13 +327,13 @@ function App() {
                     </div>
                   ) : (
                     <div className="text-left whitespace-pre-wrap text-white mb-6">
-                      {transcript.text || transcript}
+                      {transcript.text ?? transcript}
                     </div>
                   )}
                   
                   {transcript.model && (
                     <div className="pt-4 border-t border-gray-700 text-sm text-gray-400">
-                      <p>Modèle: {transcript.model.type} | Langue: {transcript.result?.language || 'fr'}</p>
+                      <p>Modèle: {transcript.model.type} | Langue: {transcript.result?.language ?? 'fr'}</p>
                     </div>
                   )}
                 </>
@@ -502,7 +347,7 @@ function App() {
               <h2 className="text-2xl font-bold mb-6">🧠 Analyse des émotions</h2>
               <div className="space-y-4">
                 {intentionAnalysis.map((segment, index) => (
-                  <div key={index} className="bg-gray-700 p-4 rounded-lg">
+                  <div key={`${segment.start}-${segment.text}`} className="bg-gray-700 p-4 rounded-lg">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-3">
                         <span className="text-blue-400 font-mono text-sm">
@@ -511,10 +356,10 @@ function App() {
                         <div className="flex items-center gap-2">
                           <div 
                             className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: segment.customEmotion?.color || '#6B7280' }}
+                            style={{ backgroundColor: segment.customEmotion?.color ?? '#6B7280' }}
                           ></div>
                           <span className="font-bold text-white">
-                            {segment.customEmotion?.displayName || segment.emotion}
+                            {segment.customEmotion?.displayName ?? segment.emotion}
                           </span>
                         </div>
                       </div>
@@ -523,7 +368,7 @@ function App() {
                           {Math.round(segment.confidence * 100)}%
                         </span>
                         <select
-                          value={segment.customEmotion?.id || ''}
+                          value={segment.customEmotion?.id ?? ''}
                           onChange={(e) => {
                             const newEmotionId = e.target.value;
                             const newEmotion = emotions.find(em => em.id === newEmotionId);
@@ -545,8 +390,8 @@ function App() {
                     </div>
                     <p className="text-gray-300 mb-2">"{segment.text}"</p>
                     <div className="flex flex-wrap gap-1">
-                      {segment.triggers.map((trigger, ti) => (
-                        <span key={ti} className="text-xs bg-purple-600 px-2 py-1 rounded">
+                      {segment.triggers.map((trigger) => (
+                        <span key={trigger} className="text-xs bg-purple-600 px-2 py-1 rounded">
                           {trigger}
                         </span>
                       ))}
@@ -562,4 +407,4 @@ function App() {
   );
 }
 
-export default App;
+export default MainPage;

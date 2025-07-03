@@ -33,9 +33,10 @@ export class AudioAnalyzer {
   private source: AudioBufferSourceNode | null = null;
   private audioBuffer: AudioBuffer | null = null;
   
-  private isAnalyzing = false;
+  // TODO: Add progress tracking state variables when needed
+  // private _isAnalyzing = false;
   private analysisData: AudioAnalysisData[] = [];
-  private currentTime = 0;
+  // private _currentTime = 0;
   
   private settings: AudioReactiveSettings = {
     sensitivity: 0.7,
@@ -95,8 +96,7 @@ export class AudioAnalyzer {
     return new Promise((resolve, reject) => {
       try {
         this.analysisData = [];
-        this.currentTime = 0;
-        this.isAnalyzing = true;
+        // Analysis started
 
         const sampleRate = audioBuffer.sampleRate;
         const frameSize = 1024;
@@ -120,10 +120,10 @@ export class AudioAnalyzer {
           if (onProgress) onProgress((frame / frameCount) * 100);
         }
 
-        this.isAnalyzing = false;
+        // Analysis completed
         resolve(this.analysisData);
       } catch (error) {
-        this.isAnalyzing = false;
+        // Analysis failed
         reject(error);
       }
     });
@@ -400,7 +400,7 @@ export class AudioAnalyzer {
     }
     
     this.analysisData = [];
-    this.isAnalyzing = false;
+    // Cleanup completed
   }
 }
 

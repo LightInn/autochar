@@ -1,6 +1,6 @@
 import React from 'react';
-import type { StickmanPose } from '../utils/stickmanPoses';
-import type { EmotionType } from '../utils/intentionAnalyzer';
+import type { StickmanPose } from '../../utils/stickmanPoses';
+import type { EmotionType } from '../../utils/intentionAnalyzer';
 
 interface StickmanViewerProps {
   pose: StickmanPose;
